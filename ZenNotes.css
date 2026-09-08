@@ -22,8 +22,8 @@
 /* The note favicon is intentionally filled in the regular Zen tab/sidebar. */
 tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
   -moz-context-properties: fill, fill-opacity, stroke, stroke-opacity !important;
-  fill: #888891 !important;
-  stroke: #888891 !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
   width: 16px !important;
   height: 16px !important;
   opacity: 0.9 !important;
