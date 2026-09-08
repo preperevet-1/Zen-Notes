@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.5.2-alpha";
+  const VERSION = "0.6.0-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -51,6 +51,7 @@
       this._activeLine = null;
       this._boostEditor = null;
       this._writes = Promise.resolve();
+      this._histories = new Map();
       this._closingNotes = new Set();
 
       this._onPopupShowing = this._onPopupShowing.bind(this);
@@ -60,6 +61,11 @@
       this._onMutation = this._onMutation.bind(this);
       this._onBoostUpdate = this._onBoostUpdate.bind(this);
       this._onNativeBoostButton = this._onNativeBoostButton.bind(this);
+      this._onFindShortcut = event => {
+        if (this.currentNoteId && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "f") {
+          event.preventDefault(); event.stopImmediatePropagation(); this._openFind();
+        }
+      };
     }
 
     async init() {
@@ -67,6 +73,7 @@
         await FileIO.makeDirectory(this.storageDir, { ignoreExisting: true });
         await this._loadIndex();
 
+        document.addEventListener("keydown", this._onFindShortcut, true);
         document.addEventListener("popupshowing", this._onPopupShowing, false);
         gBrowser.tabContainer.addEventListener("TabSelect", this._onTabSelect);
         gBrowser.tabContainer.addEventListener("TabClose", this._onTabClose);
@@ -221,6 +228,7 @@
     }
 
     _queueSave() {
+      queueMicrotask(() => this._recordHistory());
       window.clearTimeout(this.saveTimer);
       this.saveTimer = window.setTimeout(() => {
         this._saveCurrentNow().catch((error) => console.error(LOG, "Autosave failed", error));
@@ -263,7 +271,7 @@
     }
 
     _filledNoteIcon() {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 2.5h7.1L19.5 7.9v11.85A2.25 2.25 0 0 1 17.25 22H6.75A2.25 2.25 0 0 1 4.5 19.75v-15A2.25 2.25 0 0 1 6.75 2.5H7Zm6.35 1.8v4.35h4.35L13.35 4.3Z" fill="context-fill"/></svg>`;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 2.5h8l5 5V21H6a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2Z" fill="context-fill" stroke="context-stroke" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 2.5V8h5M8 12h7M8 16h7" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round"/></svg>`;
       return `data:image/svg+xml,${encodeURIComponent(svg)}`;
     }
 
@@ -289,13 +297,7 @@
         if (attempt < 5) requestAnimationFrame(() => this._tintTabIcon(tab, attempt + 1));
         return;
       }
-      icon.style.setProperty("-moz-context-properties", "fill, fill-opacity, stroke, stroke-opacity", "important");
-      icon.style.setProperty("fill", "#888891", "important");
-      icon.style.setProperty("fill-opacity", "1", "important");
-      icon.style.setProperty("stroke", "#888891", "important");
-      icon.style.setProperty("stroke-opacity", "1", "important");
-      icon.style.setProperty("color", "#888891", "important");
-      icon.style.setProperty("opacity", "0.9", "important");
+      for (const name of ["fill", "fill-opacity", "stroke", "stroke-opacity", "color", "opacity", "-moz-context-properties"]) icon.style.removeProperty(name);
     }
 
     _openNoteTab(note, { select = false, background = false } = {}) {
@@ -442,6 +444,18 @@
       });
       title.addEventListener("paste", (event) => this._pastePlainText(event));
 
+      page.addEventListener("keydown", event => this._pageKeys(event), true);
+      page.addEventListener("beforeinput", event => {
+        if (event.inputType === "historyUndo" || event.inputType === "historyRedo") {
+          event.preventDefault(); this._undo(event.inputType === "historyRedo"); return;
+        }
+        const selected = this._bodySelection();
+        const range = window.getSelection().rangeCount ? window.getSelection().getRangeAt(0) : null;
+        if (!selected || selected.start === selected.end || !range || (range.startContainer === range.endContainer && range.startContainer !== editor)) return;
+        if (event.inputType.startsWith("delete") || event.inputType === "insertText") {
+          event.preventDefault(); this._replaceBodySelection(event.data || "", selected);
+        }
+      }, true);
       page.addEventListener("contextmenu", event => this._editorContextMenu(event));
       canvas.append(title, editor);
       scroll.append(canvas);
@@ -495,6 +509,8 @@
       page.style.removeProperty("display");
       page.style.removeProperty("visibility");
       this._loadingPage = false;
+      this._recordHistory();
+      document.querySelector(".zen-notes-find")?.setAttribute("hidden", "true");
       this._applyBoost();
 
       requestAnimationFrame(() => {
@@ -510,6 +526,7 @@
     }
 
     _hidePage() {
+      this._clearFind();
       this._commitActiveLine();
       const page = document.getElementById("zen-notes-page");
       if (page) page.hidden = true;
@@ -555,6 +572,8 @@
         this._followLink(link).catch(error => console.error(LOG, error));
         return;
       }
+      const spoiler = event.target?.closest?.(".zen-notes-spoiler");
+      if (spoiler) { event.preventDefault(); spoiler.classList.toggle("is-revealed"); return; }
       const checkbox = event.target?.closest?.(".zen-notes-task-checkbox");
       if (checkbox) {
         event.preventDefault();
@@ -568,6 +587,9 @@
         return;
       }
 
+      for (const other of line.parentElement.children) {
+        if (other !== line && other.classList.contains("is-editing")) this._commitLine(other);
+      }
       if (this._activeLine === line) return;
       const rawOffset = this._rawOffsetFromPointer(line, event.clientX, event.clientY);
       event.preventDefault();
@@ -588,7 +610,7 @@
           visibleOffset = range.toString().length;
         }
       } catch {}
-      return this._visibleOffsetToRaw(raw, visibleOffset);
+      return line.classList.contains("is-editing") ? visibleOffset : this._visibleOffsetToRaw(raw, visibleOffset);
     }
 
     _visibleTextForRaw(raw) {
@@ -662,11 +684,22 @@
       const editor = document.getElementById("zen-notes-editor");
       if (!editor) return;
       let insideFence = false;
+      const tableLines = Array.from(editor.children);
+      for (let i = 0; i < tableLines.length; i++) {
+        const line = tableLines[i], raw = line.dataset.raw || "";
+        const row = /^\s*\|.*\|\s*$/.test(raw);
+        const separator = row && raw.trim().slice(1, -1).split("|").every(cell => /^\s*:?-{3,}:?\s*$/.test(cell));
+        line.classList.toggle("is-table-row", row);
+        line.classList.toggle("is-table-divider", separator);
+        const prev = tableLines[i - 1];
+        line.classList.toggle("is-table-start", row && (!prev || !/^\s*\|.*\|\s*$/.test(prev.dataset.raw || "")));
+      }
       for (const line of editor.querySelectorAll(":scope > .zen-notes-line")) {
         const raw = line.dataset.raw ?? "";
         const fence = /^\s*```/.test(raw);
         line.dataset.codeBlock = insideFence || fence ? "true" : "false";
         this._renderLine(line, insideFence);
+        if (insideFence || fence) line.classList.remove("is-table-row", "is-table-divider", "is-table-start");
         if (fence) insideFence = !insideFence;
       }
     }
@@ -770,7 +803,10 @@
 
       text = text.replace(/\\([\\`*{}\[\]()#+.!_>~-])/g, (_, c) => token(c));
       text = text.replace(/`([^`]+)`/g, (_, c) => token(`<code>${c}</code>`));
-      text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt) => token(`<span class="zen-notes-embed">🖼 ${alt || "image"}</span>`));
+      text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, source) => {
+        const url = source.replace(/^&lt;|&gt;$/g, "");
+        return /^(?:https?:\/\/|data:image\/(?:png|jpeg|gif|webp);base64,)/i.test(url) ? token(`<img class="zen-notes-image" src="${url}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer"/>`) : token(`<span class="zen-notes-embed">${alt || "Image: unsupported URL"}</span>`);
+      });
       text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => token(`<span class="zen-notes-link" data-href="${href.replace(/"/g, "&quot;")}">${label}</span>`));
       text = text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, alias) => token(`<span class="zen-notes-wikilink" data-target="${target.replace(/"/g, "&quot;")}">${alias || target}</span>`));
       text = text.replace(/&lt;(https?:\/\/[^\s]+?)&gt;/g, (_, href) => token(`<span class="zen-notes-link" data-href="${href}">${href}</span>`));
@@ -780,6 +816,8 @@
         while (href.endsWith(")") && (href.match(/\)/g) || []).length > (href.match(/\(/g) || []).length) href = href.slice(0, -1);
         return token(`<span class="zen-notes-link" data-href="${href}">${href}</span>`) + match.slice(href.length);
       });
+      text = text.replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, "<u>$1</u>");
+      text = text.replace(/\|\|(.+?)\|\|/g, '<span class="zen-notes-spoiler" tabindex="0">$1</span>');
       text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
       text = text.replace(/__([^_]+)__/g, "<strong>$1</strong>");
       text = text.replace(/~~([^~]+)~~/g, "<del>$1</del>");
@@ -803,6 +841,10 @@
       // sending focus to the URL/search field while a note is being edited.
       event.stopPropagation();
 
+      const selected = this._bodySelection();
+      if (selected && selected.end > selected.start && this._editorMarkdown().slice(selected.start, selected.end).includes("\n") && ["Enter", "Backspace", "Delete"].includes(event.key)) {
+        event.preventDefault(); this._replaceBodySelection(event.key === "Enter" ? "\n" : "", selected); return;
+      }
       const key = event.key;
       if ((event.metaKey || event.ctrlKey) && !event.altKey) {
         const lower = key.toLowerCase();
@@ -1065,12 +1107,31 @@
     }
 
     _pastePlainText(event) {
+      const image = Array.from(event.clipboardData?.items || []).find(item => /^image\/(png|jpeg|gif|webp)$/.test(item.type));
+      if (image) {
+        event.preventDefault(); event.stopPropagation();
+        const selection = this._bodySelection(), id = this.currentNoteId, originalBody = this._editorMarkdown();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (this.currentNoteId !== id || !selection || this._editorMarkdown() !== originalBody) return;
+          this._replaceBodySelection(`![Image](${reader.result})`, selection);
+          const active = this._activeLine;
+          this._commitActiveLine();
+          active?.blur();
+        };
+        reader.readAsDataURL(image.getAsFile());
+        return;
+      }
       const text = event.clipboardData?.getData("text/plain");
       if (typeof text !== "string") return;
       event.preventDefault();
       event.stopPropagation();
 
       const target = event.currentTarget;
+      const bodySelection = this._bodySelection();
+      if (bodySelection && this._editorMarkdown().slice(bodySelection.start, bodySelection.end).includes("\n")) {
+        this._replaceBodySelection(text.replace(/\r\n/g, "\n"), bodySelection); return;
+      }
       if (target?.classList?.contains("zen-notes-line")) {
         const normalized = text.replace(/\r\n/g, "\n");
         if (normalized.includes("\n")) {
@@ -1195,6 +1256,176 @@
       }
     }
 
+    _snapshot() {
+      return { title: document.getElementById("zen-notes-page-title")?.textContent || "",
+        body: this._editorMarkdown() };
+    }
+
+    _recordHistory() {
+      if (!this.currentNoteId || this._loadingPage || this._restoringHistory) return;
+      const value = this._snapshot();
+      let history = this._histories.get(this.currentNoteId);
+      if (!history) { history = { entries: [], index: -1 }; this._histories.set(this.currentNoteId, history); }
+      if (JSON.stringify(history.entries[history.index]) === JSON.stringify(value)) return;
+      history.entries.splice(history.index + 1);
+      history.entries.push(value);
+      if (history.entries.length > 200) history.entries.shift();
+      history.index = history.entries.length - 1;
+    }
+
+    _undo(redo = false) {
+      this._recordHistory();
+      const history = this._histories.get(this.currentNoteId);
+      if (!history) return;
+      const next = history.index + (redo ? 1 : -1);
+      if (next < 0 || next >= history.entries.length) return;
+      history.index = next;
+      this._restoringHistory = true;
+      const value = history.entries[next];
+      document.getElementById("zen-notes-page-title").textContent = value.title;
+      this._setBody(value.body);
+      this._focusLine(document.getElementById("zen-notes-editor").firstElementChild, 0);
+      this._restoringHistory = false;
+      this._queueSave();
+    }
+
+    _setBody(body) {
+      this._activeLine = null;
+      const editor = document.getElementById("zen-notes-editor");
+      editor.replaceChildren(...body.split("\n").map(raw => this._makeLine(raw)));
+      this._renderAllLines();
+    }
+
+    _selectAll() {
+      const editor = document.getElementById("zen-notes-editor");
+      // One source selection across every line, including Markdown markers.
+      this._commitActiveLine();
+      for (const line of editor.children) {
+        line.textContent = line.dataset.raw || "";
+        line.classList.add("is-editing");
+      }
+      editor.firstElementChild?.focus();
+      const range = document.createRange(); range.selectNodeContents(editor);
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+    }
+
+    _bodySelection() {
+      const editor = document.getElementById("zen-notes-editor");
+      const selection = window.getSelection();
+      if (!selection.rangeCount) return null;
+      const range = selection.getRangeAt(0);
+      if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) return null;
+      const lines = Array.from(editor.children);
+      const offset = (node, position) => {
+        if (node === editor) return lines.slice(0, position).reduce((n, l) => n + (l.dataset.raw || "").length + 1, 0);
+        const line = (node.nodeType === 1 ? node : node.parentElement).closest(".zen-notes-line");
+        const index = lines.indexOf(line);
+        if (index < 0) return 0;
+        const prefix = lines.slice(0, index).reduce((n, l) => n + (l.classList.contains("is-editing") ? this._lineText(l) : l.dataset.raw || "").length + 1, 0);
+        const r = document.createRange(); r.selectNodeContents(line); r.setEnd(node, position);
+        const local = line.classList.contains("is-editing") ? r.toString().length : this._visibleOffsetToRaw(line.dataset.raw || "", r.toString().length);
+        return prefix + local;
+      };
+      const body = this._editorMarkdown();
+      return { start: Math.min(body.length, offset(range.startContainer, range.startOffset)), end: Math.min(body.length, offset(range.endContainer, range.endOffset)) };
+    }
+
+    _replaceBodySelection(text, selection = this._bodySelection()) {
+      if (!selection) return;
+      this._recordHistory();
+      const body = this._editorMarkdown();
+      const result = body.slice(0, selection.start) + text + body.slice(selection.end);
+      this._setBody(result);
+      const before = result.slice(0, selection.start + text.length).split("\n");
+      this._focusLine(document.getElementById("zen-notes-editor").children[before.length - 1], before.at(-1).length);
+      this._queueSave();
+    }
+
+    _format(action, selection = this._bodySelection()) {
+      if (!selection) return;
+      const selected = this._editorMarkdown().slice(selection.start, selection.end);
+      const wraps = { bold: ["**", "**"], italic: ["*", "*"], strike: ["~~", "~~"], underline: ["<u>", "</u>"], spoiler: ["||", "||"], code: ["`", "`"], link: ["[", "](https://)"] };
+      let value = selected;
+      if (wraps[action]) value = wraps[action][0] + selected + wraps[action][1];
+      else if (action === "clear") value = selected.replace(/!?(\[([^\]]*)\])\([^)]*\)/g, "$2").replace(/<\/?u>/g, "").replace(/(\*\*|__|~~|==|\|\||`|\*|_)/g, "").replace(/^\s*(?:#{1,6}\s+|>\s?)/gm, "");
+      else if (action === "quote") value = selected.split("\n").map(line => `> ${line}`).join("\n");
+      else if (action === "date") value = new Date().toLocaleDateString();
+      else if (action === "upper") value = selected.toLocaleUpperCase();
+      else if (action === "lower") value = selected.toLocaleLowerCase();
+      else if (action === "capitalize") value = selected.toLocaleLowerCase().replace(/(^|\s)(\p{L})/gu, (_, space, letter) => space + letter.toLocaleUpperCase());
+      this._replaceBodySelection(value, selection);
+    }
+
+    _pageKeys(event) {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      // Find's input keeps native text editing shortcuts.
+      if (event.target.closest?.(".zen-notes-find")) return;
+      const actions = event.shiftKey ? { x: "strike", u: "underline", p: "spoiler", k: "code", i: "quote" } : { b: "bold", i: "italic", u: "link", k: "link", e: "code" };
+      if (!["a", "z", "y", "f"].includes(key) && !actions[key]) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (key === "a") this._selectAll();
+      else if (key === "z" || key === "y") this._undo(event.shiftKey || key === "y");
+      else if (key === "f") this._openFind();
+      else this._format(actions[key]);
+    }
+
+    _clearFind() {
+      document.querySelectorAll(".zen-notes-found").forEach(el => el.classList.remove("zen-notes-found"));
+      globalThis.CSS?.highlights?.delete("zen-notes-find");
+      globalThis.CSS?.highlights?.delete("zen-notes-find-current");
+    }
+
+    _openFind() {
+      let bar = document.querySelector(".zen-notes-find");
+      if (!bar) {
+        bar = this._html("div"); bar.className = "zen-notes-find";
+        const input = this._html("input"); input.placeholder = "Find in note"; input.setAttribute("aria-label", "Find in note");
+        const count = this._html("span"); count.className = "zen-notes-find-count";
+        const search = (direction = 0) => {
+          const query = input.value.toLocaleLowerCase();
+          const lines = Array.from(document.querySelectorAll("#zen-notes-page-title, #zen-notes-editor > .zen-notes-line"));
+          const matches = [];
+          const ranges = [];
+          for (const line of lines) {
+            line.classList.remove("zen-notes-found");
+            if (!query || line.classList.contains("is-table-divider")) continue;
+            const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+            const nodes = []; let node, full = "";
+            while ((node = walker.nextNode())) { nodes.push({ node, start: full.length }); full += node.textContent; }
+            let offset = 0;
+            while ((offset = full.toLocaleLowerCase().indexOf(query, offset)) !== -1) {
+              const from = nodes.find(item => offset < item.start + item.node.length);
+              const to = nodes.find(item => offset + query.length <= item.start + item.node.length);
+              if (from && to) {
+                const range = document.createRange();
+                range.setStart(from.node, offset - from.start);
+                range.setEnd(to.node, offset + query.length - to.start);
+                ranges.push(range); matches.push(line);
+              }
+              offset += query.length;
+            }
+          }
+          this._findIndex = direction && matches.length ? ((this._findIndex || 0) + direction + matches.length) % matches.length : 0;
+          const hit = matches[this._findIndex];
+          if (globalThis.CSS?.highlights && globalThis.Highlight) {
+            CSS.highlights.set("zen-notes-find", new Highlight(...ranges));
+            CSS.highlights.set("zen-notes-find-current", new Highlight(...(ranges[this._findIndex] ? [ranges[this._findIndex]] : [])));
+          }
+          if (hit) { hit.classList.add("zen-notes-found"); hit.scrollIntoView({ block: "center" }); }
+          count.textContent = matches.length ? `${this._findIndex + 1} / ${matches.length}` : "0 results";
+        };
+        input.addEventListener("input", () => search());
+        input.addEventListener("keydown", event => { event.stopPropagation(); if (event.key === "Enter") { event.preventDefault(); search(event.shiftKey ? -1 : 1); } if (event.key === "Escape") { bar.hidden = true; this._clearFind(); } });
+        bar.append(input, count);
+        for (const [label, action] of [["Previous", () => search(-1)], ["Next", () => search(1)], ["Close", () => { bar.hidden = true; this._clearFind(); }]]) {
+          const button = this._html("button"); button.textContent = label; button.addEventListener("click", action); bar.append(button);
+        }
+        document.getElementById("zen-notes-page").append(bar);
+      }
+      bar.hidden = false; bar.querySelector("input").focus(); bar.querySelector("input").select();
+    }
+
     _menuItem(label, action) {
       const item = document.createXULElement("menuitem");
       item.setAttribute("label", label);
@@ -1209,6 +1440,7 @@
       const selection = window.getSelection();
       const range = selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
       const target = event.target.closest("[contenteditable]");
+      const bodySelection = this._bodySelection();
       let popup = document.getElementById("zen-notes-edit-menu");
       if (!popup) {
         popup = document.createXULElement("menupopup");
@@ -1223,14 +1455,30 @@
         const item = this._menuItem(label, () => {
           target?.focus();
           if (range) { selection.removeAllRanges(); selection.addRange(range); }
-          if (command === "selectAll" && target) {
-            const all = document.createRange(); all.selectNodeContents(target);
-            selection.removeAllRanges(); selection.addRange(all);
+          if (command === "selectAll") {
+            this._selectAll();
           } else document.execCommand(command);
         });
         if ((command === "copy" || command === "cut") && selection.isCollapsed) item.disabled = true;
         popup.append(item);
       }
+      const formatting = document.createXULElement("menu"); formatting.setAttribute("label", "Formatting");
+      const options = document.createXULElement("menupopup");
+      const modifier = Services.appinfo.OS === "Darwin" ? "⌘" : "Ctrl+";
+      const entries = [["Clear Formatting", "clear", ""], null,
+        ["Strikethrough", "strike", "⇧" + modifier + "X"], ["Underline", "underline", "⇧" + modifier + "U"],
+        ["Spoiler", "spoiler", "⇧" + modifier + "P"], ["Monospace", "code", "⇧" + modifier + "K"],
+        ["Italic", "italic", modifier + "I"], ["Bold", "bold", modifier + "B"], ["Make Link", "link", modifier + "U"],
+        ["Date", "date", ""], ["Quote", "quote", "⇧" + modifier + "I"], null,
+        ["Make Upper Case", "upper", ""], ["Make Lower Case", "lower", ""], ["Capitalize", "capitalize", ""]];
+      for (const entry of entries) {
+        if (!entry) { options.append(document.createXULElement("menuseparator")); continue; }
+        const [label, action, shortcut] = entry;
+        const item = this._menuItem(label, () => this._format(action, bodySelection));
+        if (shortcut) item.setAttribute("acceltext", shortcut);
+        item.disabled = !bodySelection; options.append(item);
+      }
+      formatting.append(options); popup.append(document.createXULElement("menuseparator"), formatting);
       popup.openPopupAtScreen(event.screenX, event.screenY, true);
     }
 
@@ -1246,7 +1494,9 @@
       popup.querySelector("#zen-notes-add-selection")?.remove();
       popup.querySelector("#zen-notes-add-selection-separator")?.remove();
       const context = window.gContextMenu;
-      const text = context?.selectionInfo?.fullText || context?.contentData?.selectionInfo?.fullText || context?.selectedText || "";
+      const imageURL = context?.onImage ? context.imageURL || context.mediaURL : "";
+      const isImage = /^https?:\/\//i.test(imageURL || "");
+      const text = isImage ? `![Image](<${imageURL.replace(/>/g, "%3E")}>)` : context?.selectionInfo?.fullText || context?.contentData?.selectionInfo?.fullText || context?.selectedText || "";
       if (typeof text !== "string" || !text.trim()) return;
       const menu = document.createXULElement("menu");
       menu.id = "zen-notes-add-selection";
@@ -1262,10 +1512,11 @@
       const separator = document.createXULElement("menuseparator");
       separator.id = "zen-notes-add-selection-separator";
       separator.dataset.zenNotesMenu = "true";
-      const first = Array.from(popup.children).find(node =>
+      const separators = Array.from(popup.children).filter(node =>
         node.localName === "menuseparator" && !node.hidden &&
         node.getAttribute("hidden") !== "true" &&
         window.getComputedStyle(node).display !== "none");
+      const first = separators[isImage ? 1 : 0] || separators.at(-1);
       const anchor = first ? first.nextSibling : popup.firstChild;
       popup.insertBefore(menu, anchor);
       popup.insertBefore(separator, anchor);
@@ -1326,7 +1577,11 @@
         this._addSelectionMenu(popup);
         return;
       }
-      if (["tabContextMenu", "toolbar-context-menu", "zen-sidebar-context-menu"].includes(popup.id)) {
+      if (popup.id === "tabContextMenu") {
+        popup.querySelector("[data-zen-notes-create]")?.remove();
+        return;
+      }
+      if (["toolbar-context-menu", "zen-sidebar-context-menu"].includes(popup.id)) {
         if (!popup.querySelector("[data-zen-notes-create]")) {
           const item = this._menuItem("Create Note", () => this.createNote());
           item.dataset.zenNotesCreate = "true";
@@ -1419,7 +1674,9 @@
 
     destroy() {
       this._destroyed = true;
+      this._clearFind();
       window.clearTimeout(this.saveTimer);
+      document.removeEventListener("keydown", this._onFindShortcut, true);
       document.removeEventListener("popupshowing", this._onPopupShowing, false);
       document.removeEventListener("command", this._onNativeBoostButton, true);
       gBrowser?.tabContainer?.removeEventListener("TabSelect", this._onTabSelect);
