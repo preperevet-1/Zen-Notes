@@ -1,0 +1,180 @@
+/* Zen Notes 0.1.0-alpha */
+
+#zen-notes-create-menuitem {
+  list-style-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6.75 3.75h7.9l2.6 2.6v13.9H6.75z' fill='none' stroke='context-fill' stroke-width='1.7' stroke-linejoin='round'/%3E%3Cpath d='M14.5 3.9v3h2.9M9.2 11h5.7M9.2 14.2h5.7' fill='none' stroke='context-fill' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E") !important;
+}
+
+#zen-notes-sidebar[hidden],
+#zen-notes-overlay[hidden] {
+  display: none !important;
+}
+
+#zen-notes-sidebar {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 100%;
+  padding: 2px 6px 6px;
+}
+
+.zen-notes-sidebar-header {
+  box-sizing: border-box;
+  padding: 4px 8px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.48;
+}
+
+#zen-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zen-notes-item {
+  appearance: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  margin: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.zen-notes-item:hover,
+.zen-notes-item[data-active="true"] {
+  background: var(--zen-colors-tertiary, var(--toolbarbutton-hover-background));
+}
+
+.zen-notes-item-icon {
+  display: grid;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  opacity: 0.78;
+}
+
+.zen-notes-item-icon svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.zen-notes-item-label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#zen-notes-overlay {
+  position: fixed;
+  z-index: 2147483000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 48px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+#zen-notes-editor {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(760px, calc(100vw - 96px));
+  height: min(680px, calc(100vh - 96px));
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 16px;
+  color: var(--toolbar-color, inherit);
+  background: var(--zen-main-browser-background, var(--toolbar-bgcolor));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+}
+
+.zen-notes-editor-header {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 12px 8px 20px;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 9%, transparent);
+}
+
+#zen-notes-title {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+#zen-notes-close {
+  appearance: none;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 23px;
+  line-height: 1;
+  cursor: default;
+  opacity: 0.72;
+}
+
+#zen-notes-close:hover {
+  background: var(--toolbarbutton-hover-background);
+  opacity: 1;
+}
+
+#zen-notes-body {
+  appearance: none;
+  box-sizing: border-box;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  resize: none;
+  padding: 22px 22px 28px;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.65;
+  tab-size: 2;
+}
+
+.zen-notes-editor-footer {
+  box-sizing: border-box;
+  padding: 8px 20px 10px;
+  border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+  font-size: 11px;
+  opacity: 0.46;
+}
