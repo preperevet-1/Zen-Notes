@@ -1,14 +1,19 @@
 /* Zen Notes 0.4.1-alpha */
 
-#zen-notes-create-menuitem,
-#zen-notes-create-menuitem > .menu-iconic-left > .menu-iconic-icon,
-tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
-  -moz-context-properties: fill, fill-opacity, stroke, stroke-opacity !important;
+/* Native Firefox/Zen document glyph for the Create Note popup entry. */
+#zen-notes-create-menuitem {
+  list-style-image: url("chrome://global/skin/icons/page-portrait.svg") !important;
+  -moz-context-properties: fill, fill-opacity !important;
   fill: currentColor !important;
-  stroke: currentColor !important;
+  fill-opacity: 1 !important;
 }
 
-#zen-notes-create-menuitem > .menu-iconic-left > .menu-iconic-icon {
+#zen-notes-create-menuitem > .menu-iconic-left > .menu-iconic-icon,
+#zen-notes-create-menuitem .menu-iconic-icon {
+  list-style-image: url("chrome://global/skin/icons/page-portrait.svg") !important;
+  -moz-context-properties: fill, fill-opacity !important;
+  fill: currentColor !important;
+  fill-opacity: 1 !important;
   width: 18px !important;
   height: 18px !important;
   opacity: 0.86 !important;
@@ -16,6 +21,9 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
 
 /* The note favicon is intentionally filled in the regular Zen tab/sidebar. */
 tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
+  -moz-context-properties: fill, fill-opacity, stroke, stroke-opacity !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
   width: 16px !important;
   height: 16px !important;
   opacity: 0.9 !important;
@@ -23,7 +31,16 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
 
 .zen-notes-page-host {
   position: relative !important;
-  isolation: isolate;
+  isolation: isolate !important;
+  overflow: hidden !important;
+}
+
+/* The editor is an HTML chrome surface layered over the selected note tab.
+   Hide the underlying about:home tabpanel while a note is active so Zen's
+   compositor cannot cover the editor with a blank white page. */
+#tabbrowser-tabbox[zen-notes-active="true"] > #tabbrowser-tabpanels {
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 #zen-notes-page[hidden] {
@@ -45,11 +62,15 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
   --zen-notes-page-fg: var(--zen-notes-boost-fg, light-dark(#202020, #ececec));
   --zen-notes-accent: var(--zen-notes-boost-accent, light-dark(#6f56d9, #9f8cff));
 
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  display: block;
-  overflow: hidden;
+  position: absolute !important;
+  z-index: 2147483000 !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  overflow: hidden !important;
   color-scheme: light dark;
   color: var(--zen-notes-page-fg);
   background: var(--zen-notes-page-bg);
@@ -58,6 +79,8 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
 }
 
 .zen-notes-page-scroll {
+  display: block !important;
+  position: relative !important;
   box-sizing: border-box;
   width: 100%;
   height: 100%;
@@ -67,6 +90,8 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
 }
 
 .zen-notes-page-canvas {
+  display: block !important;
+  position: relative !important;
   box-sizing: border-box;
   width: min(860px, calc(100% - 72px));
   min-height: 100%;

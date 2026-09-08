@@ -3,8 +3,10 @@
 (() => {
   const LOG = "[Zen Notes]";
   const VERSION = "0.4.1-alpha";
-  const TAB_URL = "about:blank";
-  const LEGACY_TAB_URL_PREFIXES = ["about:home#zen-note=", "about:blank#zen-note="];
+  const HTML_NS = "http://www.w3.org/1999/xhtml";
+  const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
+  const TAB_URL_PREFIX = "about:home#zen-note=";
+  const LEGACY_TAB_URL_PREFIXES = ["about:blank#zen-note="];
   const BOOST_DOMAIN = "zen-notes.local";
   const BOOST_URI = "https://zen-notes.local/";
   const INDENT = "    ";
@@ -50,17 +52,11 @@
       this._expectingCreatePopupUntil = 0;
       this._activeLine = null;
       this._boostEditor = null;
-      this._closingWindow = false;
-      this._applicationShuttingDown = false;
-      this._deletedNoteIds = new Set();
 
       this._onPopupShowing = this._onPopupShowing.bind(this);
       this._onCreateButtonPointer = this._onCreateButtonPointer.bind(this);
       this._onTabSelect = this._onTabSelect.bind(this);
       this._onTabClose = this._onTabClose.bind(this);
-      this._onTabAttrModified = this._onTabAttrModified.bind(this);
-      this._onWindowClosing = this._onWindowClosing.bind(this);
-      this._onAppQuit = this._onAppQuit.bind(this);
       this._onMutation = this._onMutation.bind(this);
       this._onBoostUpdate = this._onBoostUpdate.bind(this);
     }
@@ -73,9 +69,6 @@
         document.addEventListener("popupshowing", this._onPopupShowing, true);
         gBrowser.tabContainer.addEventListener("TabSelect", this._onTabSelect);
         gBrowser.tabContainer.addEventListener("TabClose", this._onTabClose);
-        gBrowser.tabContainer.addEventListener("TabAttrModified", this._onTabAttrModified);
-        window.addEventListener("SSWindowClosing", this._onWindowClosing, true);
-        if (globalThis.Services?.obs) Services.obs.addObserver(this._onAppQuit, "quit-application-granted");
 
         this.observer = new MutationObserver(this._onMutation);
         this.observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -124,7 +117,7 @@
     }
 
     _notePath(id) { return Paths.join(this.storageDir, `${id}.md`); }
-    _noteURL() { return TAB_URL; }
+    _noteURL(id) { return `${TAB_URL_PREFIX}${encodeURIComponent(id)}`; }
     _getNote(id) { return this.notes.find((note) => note.id === id) || null; }
 
     _idFromTab(tab) {
@@ -136,7 +129,7 @@
       } catch {}
 
       const spec = tab?.linkedBrowser?.currentURI?.spec || "";
-      const prefix = LEGACY_TAB_URL_PREFIXES.find((p) => spec.startsWith(p));
+      const prefix = [TAB_URL_PREFIX, ...LEGACY_TAB_URL_PREFIXES].find((p) => spec.startsWith(p));
       if (!prefix) return null;
       try { return decodeURIComponent(spec.slice(prefix.length)); } catch { return null; }
     }
@@ -150,7 +143,6 @@
 
       const tab = this._openNoteTab(note, { select: true });
       this.noteTabs.set(note.id, tab);
-      await this._waitForSelectedTab(tab);
       await this._showNote(note.id, { focusTitle: true });
     }
 
@@ -182,10 +174,9 @@
     async _saveCurrentNow() {
       window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
-      if (!this.currentNoteId || this._deletedNoteIds.has(this.currentNoteId)) return;
+      if (!this.currentNoteId) return;
 
-      const noteId = this.currentNoteId;
-      const note = this._getNote(noteId);
+      const note = this._getNote(this.currentNoteId);
       const page = document.getElementById("zen-notes-page");
       const title = document.getElementById("zen-notes-page-title");
       const editor = document.getElementById("zen-notes-editor");
@@ -197,17 +188,19 @@
       note.title = noteTitle;
       note.updatedAt = new Date().toISOString();
 
-      if (this._deletedNoteIds.has(noteId) || !this._getNote(noteId)) return;
       await FileIO.writeUTF8(this._notePath(note.id), `# ${noteTitle}\n\n${body}`);
-      if (this._deletedNoteIds.has(noteId) || !this._getNote(noteId)) return;
       await this._writeIndex();
       this._syncTabAppearance(note.id);
     }
 
     _outlineNoteIcon() {
-      // Generic document outline, intentionally not an Apple SF Symbols asset.
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 2.75h7.05L19 7.7v13.55H7a2 2 0 0 1-2-2V4.75a2 2 0 0 1 2-2Z" fill="none" stroke="context-stroke" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2.95V7.8h4.75" fill="none" stroke="context-stroke" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-      return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+      // Use Firefox/Zen's own built-in page glyph in chrome menus. This is more
+      // reliable than a data: SVG in XUL popups and inherits the current theme.
+      return MENU_NOTE_ICON;
+    }
+
+    _html(tagName) {
+      return document.createElementNS(HTML_NS, tagName);
     }
 
     _filledNoteIcon() {
@@ -228,53 +221,19 @@
     _openNoteTab(note, { select = false, background = false } = {}) {
       let tab;
       const url = this._noteURL(note.id);
-
-      // Always create the tab in the background first. Zen can dispatch TabSelect
-      // before addTab() returns; if we opened it directly in the foreground the
-      // note marker was not attached yet and Zen Notes treated it as a normal New Tab.
       try {
         const principal = Services?.scriptSecurityManager?.getSystemPrincipal?.();
         tab = gBrowser.addTab(url, {
           skipAnimation: true,
-          inBackground: true,
+          inBackground: background || !select,
           triggeringPrincipal: principal,
         });
       } catch {
-        tab = gBrowser.addTab(url, { skipAnimation: true, inBackground: true });
+        tab = gBrowser.addTab(url, { skipAnimation: true, inBackground: background || !select });
       }
-
       this._markTab(tab, note);
-      this.noteTabs.set(note.id, tab);
-
-      // Firefox/Zen may asynchronously replace the label with "New Tab" after
-      // the blank document finishes loading. Re-assert the note metadata.
-      queueMicrotask(() => this._markTab(tab, note));
-      window.setTimeout(() => this._markTab(tab, note), 80);
-      window.setTimeout(() => this._markTab(tab, note), 350);
-
-      if (select && !background) gBrowser.selectedTab = tab;
+      if (select) gBrowser.selectedTab = tab;
       return tab;
-    }
-
-    _waitForSelectedTab(tab) {
-      if (gBrowser.selectedTab === tab && gBrowser.selectedBrowser === tab.linkedBrowser) {
-        return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      }
-      return new Promise((resolve) => {
-        let done = false;
-        const finish = () => {
-          if (done) return;
-          done = true;
-          gBrowser.tabContainer.removeEventListener("TabSelect", onSelect);
-          requestAnimationFrame(() => requestAnimationFrame(resolve));
-        };
-        const onSelect = () => {
-          if (gBrowser.selectedTab === tab) finish();
-        };
-        gBrowser.tabContainer.addEventListener("TabSelect", onSelect);
-        if (gBrowser.selectedTab !== tab) gBrowser.selectedTab = tab;
-        window.setTimeout(finish, 250);
-      });
     }
 
     _recoverExistingNoteTabs() {
@@ -302,68 +261,15 @@
 
     async _onTabSelect() { await this._syncSelectedTab(); }
 
-    _onTabAttrModified(event) {
-      const tab = event.target;
-      const id = this._idFromTab(tab);
-      const note = id ? this._getNote(id) : null;
-      if (!note || tab.closing) return;
-      if (tab.label !== (note.title || "New Note") || tab.getAttribute("zen-notes-tab") !== "true") {
-        queueMicrotask(() => this._markTab(tab, note));
-      }
-    }
-
-    _onWindowClosing() {
-      this._closingWindow = true;
-    }
-
-    _onAppQuit() {
-      this._applicationShuttingDown = true;
-    }
-
-    async _deleteNote(id) {
-      const note = this._getNote(id);
-      if (!note || this._deletedNoteIds.has(id)) return;
-
-      this._deletedNoteIds.add(id);
-      if (this.currentNoteId === id) {
-        window.clearTimeout(this.saveTimer);
-        this.saveTimer = null;
+    async _onTabClose(event) {
+      const id = this._idFromTab(event.target);
+      if (!id) return;
+      if (id === this.currentNoteId) {
+        await this._saveCurrentNow();
         this.currentNoteId = null;
         this._hidePage();
       }
-
       this.noteTabs.delete(id);
-      this.notes = this.notes.filter((item) => item.id !== id);
-
-      // Update the index first so the deleted note cannot be restored on restart.
-      await this._writeIndex();
-      await FileIO.remove(this._notePath(id), { ignoreAbsent: true });
-    }
-
-    async _onTabClose(event) {
-      const tab = event.target;
-      const id = this._idFromTab(tab);
-      if (!id) return;
-
-      // Firefox fires TabClose when a tab is adopted/moved to another window.
-      // That is a move, not a deletion request.
-      if (event.detail?.adoptedBy) {
-        this.noteTabs.delete(id);
-        return;
-      }
-
-      // Closing the whole Zen window/application is not the same as explicitly
-      // closing a note tab. Preserve notes across browser restarts.
-      if (this._closingWindow || this._applicationShuttingDown) {
-        this.noteTabs.delete(id);
-        return;
-      }
-
-      try {
-        await this._deleteNote(id);
-      } catch (error) {
-        console.error(LOG, `Could not delete note ${id}`, error);
-      }
     }
 
     async _syncSelectedTab() {
@@ -379,8 +285,15 @@
     }
 
     _getHost() {
-      const browserStack = gBrowser?.selectedBrowser?.parentElement;
-      return browserStack || document.getElementById("tabbrowser-tabbox") || document.getElementById("appcontent") || document.documentElement;
+      // Mount once in the stable tab content container, not inside the currently
+      // selected browserStack. browserStack can be swapped during TabSelect,
+      // which caused 0.4.0 to leave the editor behind an empty about:home page.
+      return (
+        document.getElementById("tabbrowser-tabbox") ||
+        document.getElementById("appcontent") ||
+        gBrowser?.selectedBrowser?.parentElement ||
+        document.documentElement
+      );
     }
 
     _ensurePage() {
@@ -397,19 +310,19 @@
       }
 
       host.classList.add("zen-notes-page-host");
-      page = document.createElement("div");
+      page = this._html("div");
       page.id = "zen-notes-page";
       page.hidden = true;
 
-      const scroll = document.createElement("div");
+      const scroll = this._html("div");
       scroll.className = "zen-notes-page-scroll";
 
-      const canvas = document.createElement("main");
+      const canvas = this._html("main");
       canvas.className = "zen-notes-page-canvas";
 
-      const topActions = document.createElement("div");
+      const topActions = this._html("div");
       topActions.className = "zen-notes-top-actions";
-      const boostButton = document.createElement("button");
+      const boostButton = this._html("button");
       boostButton.id = "zen-notes-boost-button";
       boostButton.type = "button";
       boostButton.textContent = "Boost";
@@ -418,7 +331,7 @@
       boostButton.addEventListener("click", () => this.openNoteBoost());
       topActions.append(boostButton);
 
-      const title = document.createElement("div");
+      const title = this._html("div");
       title.id = "zen-notes-page-title";
       this._setPlainEditable(title);
       title.spellcheck = true;
@@ -426,7 +339,7 @@
       title.setAttribute("aria-label", "Note title");
       title.setAttribute("data-placeholder", "New Note");
 
-      const editor = document.createElement("div");
+      const editor = this._html("div");
       editor.id = "zen-notes-editor";
       editor.setAttribute("role", "textbox");
       editor.setAttribute("aria-multiline", "true");
@@ -465,7 +378,10 @@
     async _showNote(id, options = {}) {
       const note = this._getNote(id);
       if (!note) return;
-      this._ensurePage();
+      if (!this._ensurePage()) {
+        console.error(LOG, "Could not mount note page host");
+        return;
+      }
       const page = document.getElementById("zen-notes-page");
       const title = document.getElementById("zen-notes-page-title");
       const editor = document.getElementById("zen-notes-editor");
@@ -484,7 +400,11 @@
 
       note.title = data.title || note.title || "New Note";
       this._syncTabAppearance(id);
+      const host = this._getHost();
+      host?.setAttribute?.("zen-notes-active", "true");
       page.hidden = false;
+      page.style.removeProperty("display");
+      page.style.removeProperty("visibility");
       this._loadingPage = false;
       this._applyBoost();
 
@@ -504,10 +424,12 @@
       this._commitActiveLine();
       const page = document.getElementById("zen-notes-page");
       if (page) page.hidden = true;
+      const host = this._getHost();
+      host?.removeAttribute?.("zen-notes-active");
     }
 
     _makeLine(raw = "") {
-      const line = document.createElement("div");
+      const line = this._html("div");
       line.className = "zen-notes-line";
       line.dataset.raw = raw;
       this._setPlainEditable(line);
@@ -1057,7 +979,7 @@
       let data = null;
       try { data = ZenBoostsManager.loadActiveBoostFromStore(BOOST_DOMAIN)?.boostEntry?.boostData || null; } catch {}
       const style = document.getElementById("zen-notes-boost-custom-css") || (() => {
-        const s = document.createElement("style");
+        const s = this._html("style");
         s.id = "zen-notes-boost-custom-css";
         document.documentElement.append(s);
         return s;
@@ -1138,6 +1060,7 @@
         item.setAttribute("label", "Create Note");
         item.setAttribute("class", "menuitem-iconic");
         item.setAttribute("image", this._outlineNoteIcon());
+        item.style.setProperty("list-style-image", `url("${MENU_NOTE_ICON}")`, "important");
         item.addEventListener("command", () => this.createNote().catch((error) => console.error(LOG, error)));
 
         const children = Array.from(popup.children || []);
@@ -1164,13 +1087,7 @@
       document.removeEventListener("popupshowing", this._onPopupShowing, true);
       gBrowser?.tabContainer?.removeEventListener("TabSelect", this._onTabSelect);
       gBrowser?.tabContainer?.removeEventListener("TabClose", this._onTabClose);
-      gBrowser?.tabContainer?.removeEventListener("TabAttrModified", this._onTabAttrModified);
-      window.removeEventListener("SSWindowClosing", this._onWindowClosing, true);
       this.observer?.disconnect();
-
-      if (globalThis.Services?.obs) {
-        try { Services.obs.removeObserver(this._onAppQuit, "quit-application-granted"); } catch {}
-      }
 
       if (ZenBoostsManager && globalThis.Services?.obs) {
         try { Services.obs.removeObserver(this._onBoostUpdate, "zen-boosts-update"); } catch {}
@@ -1184,6 +1101,7 @@
       }
 
       const page = document.getElementById("zen-notes-page");
+      page?.parentElement?.removeAttribute?.("zen-notes-active");
       page?.parentElement?.classList?.remove("zen-notes-page-host");
       page?.remove();
       document.getElementById("zen-notes-create-menuitem")?.remove();
