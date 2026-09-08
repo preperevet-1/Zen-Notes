@@ -22,16 +22,15 @@
 /* The note favicon is intentionally filled and lighter than tab text in the
    Zen tab/sidebar (kept separate from the Create Note glyph above, which
    stays dark/currentColor on purpose).
-   Zen/Firefox's own tab CSS sets .tab-icon-image's fill with a selector
-   that's MORE specific than a plain "tabbrowser-tab[attr] .tab-icon-image"
-   chain, even though both declarations use !important — and among competing
-   !important rules, specificity (not source order) decides the winner. That
-   silent loss is why this rendered dark/currentColor (the tab label's own
-   color) instead of #888891 despite this rule already being here. The
-   duplicated attribute selector below is a specificity bump (same match,
-   higher weight) to make sure ours wins regardless of Zen's internal rule. */
-tabbrowser-tab[zen-notes-tab="true"][zen-notes-tab="true"] .tab-icon-image,
-tabbrowser-tab[zen-notes-tab="true"][zen-notes-tab="true"] .tab-icon-image:is(:hover, [selected]) {
+   IMPORTANT: the tab element's real tag name is "tab" (it's a customized
+   built-in element, historically <tab is="tabbrowser-tab">) — "tabbrowser-tab"
+   is only a class/behavior name, NOT a valid CSS type selector for it. A
+   selector like "tabbrowser-tab[...] .tab-icon-image" therefore matches
+   NOTHING at all, no matter the specificity or !important. Dropping the
+   bogus type qualifier and matching purely by the attribute we set
+   ourselves is what actually reaches the element. */
+[zen-notes-tab="true"] .tab-icon-image,
+[zen-notes-tab="true"] .tab-icon-image:is(:hover, [selected]) {
   -moz-context-properties: fill, fill-opacity, stroke, stroke-opacity !important;
   fill: #888891 !important;
   fill-opacity: 1 !important;

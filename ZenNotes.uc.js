@@ -237,7 +237,28 @@
       tab.setAttribute("label", note.title || "New Note");
       tab.label = note.title || "New Note";
       tab.setAttribute("image", this._filledNoteIcon());
+      this._tintTabIcon(tab);
       try { SessionStoreAPI?.setCustomTabValue?.(tab, "zen-notes-id", note.id); } catch {}
+    }
+
+    // Belt-and-braces for the CSS rule above: set the color directly on the
+    // icon element with inline !important, which beats any external
+    // stylesheet rule (Zen's included) regardless of selector specificity.
+    // Retries briefly because a just-created tab's internal template
+    // (.tab-icon-image) may not be built yet on the same tick.
+    _tintTabIcon(tab, attempt = 0) {
+      const icon = tab?.querySelector?.(".tab-icon-image");
+      if (!icon) {
+        if (attempt < 5) requestAnimationFrame(() => this._tintTabIcon(tab, attempt + 1));
+        return;
+      }
+      icon.style.setProperty("-moz-context-properties", "fill, fill-opacity, stroke, stroke-opacity", "important");
+      icon.style.setProperty("fill", "#888891", "important");
+      icon.style.setProperty("fill-opacity", "1", "important");
+      icon.style.setProperty("stroke", "#888891", "important");
+      icon.style.setProperty("stroke-opacity", "1", "important");
+      icon.style.setProperty("color", "#888891", "important");
+      icon.style.setProperty("opacity", "0.9", "important");
     }
 
     _openNoteTab(note, { select = false, background = false } = {}) {
