@@ -36,9 +36,13 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
 }
 
 /* The editor is an HTML chrome surface layered over the selected note tab.
-   Hide the underlying about:home tabpanel while a note is active so Zen's
-   compositor cannot cover the editor with a blank white page. */
-#tabbrowser-tabbox[zen-notes-active="true"] > #tabbrowser-tabpanels {
+   Hide whatever the underlying about:home content is, in WHATEVER host
+   element _getHost() actually resolved to (tabbrowser-tabbox in the normal
+   case, but it can fall back to #appcontent or the selected browser's
+   parent on Zen builds where #tabbrowser-tabbox doesn't exist). Scoping this
+   to the id alone silently no-ops on those builds and leaves the real
+   about:home page visible instead of the note. */
+.zen-notes-page-host[zen-notes-active="true"] > :not(#zen-notes-page) {
   visibility: hidden !important;
   pointer-events: none !important;
 }

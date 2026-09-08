@@ -376,6 +376,14 @@
     }
 
     async _showNote(id, options = {}) {
+      try {
+        await this._showNoteUnsafe(id, options);
+      } catch (error) {
+        console.error(LOG, "_showNote failed — falling back to underlying page", error);
+      }
+    }
+
+    async _showNoteUnsafe(id, options = {}) {
       const note = this._getNote(id);
       if (!note) return;
       if (!this._ensurePage()) {
