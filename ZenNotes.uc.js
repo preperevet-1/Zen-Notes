@@ -2,13 +2,11 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.4.1-alpha.hotfix3";
+  const VERSION = "0.5.0-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
   const LEGACY_TAB_URL_PREFIXES = ["about:blank#zen-note="];
-  const BOOST_DOMAIN = "zen-notes.local";
-  const BOOST_URI = "https://zen-notes.local/";
   const INDENT = "    ";
 
   if (window.gZenNotes?.destroy) {
@@ -52,6 +50,8 @@
       this._expectingCreatePopupUntil = 0;
       this._activeLine = null;
       this._boostEditor = null;
+      this._writes = Promise.resolve();
+      this._closingNotes = new Set();
 
       this._onPopupShowing = this._onPopupShowing.bind(this);
       this._onCreateButtonPointer = this._onCreateButtonPointer.bind(this);
@@ -80,6 +80,18 @@
 
         this.observer = new MutationObserver(this._onMutation);
         this.observer.observe(document.documentElement, { childList: true, subtree: true });
+        this.titleObserver = new MutationObserver(records => {
+          for (const { target: tab } of records) {
+            const note = this._getNote(this._idFromTab(tab));
+            if (note && tab.getAttribute("label") !== note.title) {
+              tab.setAttribute("label", note.title);
+              tab.label = note.title;
+            }
+          }
+        });
+        this.titleObserver.observe(gBrowser.tabContainer, {
+          attributes: true, subtree: true, attributeFilter: ["label"],
+        });
 
         if (ZenBoostsManager && globalThis.Services?.obs) {
           Services.obs.addObserver(this._onBoostUpdate, "zen-boosts-update");
@@ -127,6 +139,12 @@
       }
     }
 
+    _enqueueWrite(task) {
+      const pending = this._writes.then(task);
+      this._writes = pending.catch(error => console.error(LOG, error));
+      return pending;
+    }
+
     async _writeIndex() {
       await FileIO.writeUTF8(
         this.indexPath,
@@ -166,6 +184,7 @@
       const tab = this._openNoteTab(note, { select: true });
       this.noteTabs.set(note.id, tab);
       await this._showNote(note.id, { focusTitle: true });
+      return note;
     }
 
     async _readNote(note) {
@@ -204,14 +223,17 @@
       const editor = document.getElementById("zen-notes-editor");
       if (!note || !page || page.hidden || !title || !editor) return;
 
-      this._commitActiveLine();
+      if (this._activeLine) this._activeLine.dataset.raw = this._lineText(this._activeLine);
       const noteTitle = title.textContent.trim() || "New Note";
       const body = this._editorMarkdown();
       note.title = noteTitle;
       note.updatedAt = new Date().toISOString();
 
-      await FileIO.writeUTF8(this._notePath(note.id), `# ${noteTitle}\n\n${body}`);
-      await this._writeIndex();
+      await this._enqueueWrite(async () => {
+        if (this._closingNotes.has(note.id)) return;
+        await FileIO.writeUTF8(this._notePath(note.id), `# ${noteTitle}\n\n${body}`);
+        await this._writeIndex();
+      });
       this._syncTabAppearance(note.id);
     }
 
@@ -305,14 +327,33 @@
     async _onTabSelect() { await this._syncSelectedTab(); }
 
     async _onTabClose(event) {
-      const id = this._idFromTab(event.target);
-      if (!id) return;
+      const tab = event.target;
+      const id = this._idFromTab(tab);
+      if (!id || window.closed || globalThis.gBrowser?.closing || event.detail?.adoptedBy) return;
+      // A pinned-tab reset/unload leaves the tab connected and is not deletion.
+      await new Promise(resolve => window.setTimeout(resolve, 0));
+      if (tab.isConnected && !tab.closing) {
+        this._syncTabAppearance(id);
+        return;
+      }
+      if (Array.from(gBrowser.tabs).some(other => other !== tab && !other.closing && this._idFromTab(other) === id)) return;
+      for (const otherWindow of Services.wm.getEnumerator("navigator:browser")) {
+        if (otherWindow === window || otherWindow.closed) continue;
+        if (Array.from(otherWindow.gBrowser?.tabs || []).some(other => !other.closing && this._idFromTab(other) === id)) return;
+      }
+      this._closingNotes.add(id);
       if (id === this.currentNoteId) {
-        await this._saveCurrentNow();
+        window.clearTimeout(this.saveTimer);
         this.currentNoteId = null;
         this._hidePage();
       }
       this.noteTabs.delete(id);
+      try { SessionStoreAPI?.deleteCustomTabValue?.(tab, "zen-notes-id"); } catch {}
+      await this._enqueueWrite(async () => {
+        await FileIO.remove(this._notePath(id), { ignoreAbsent: true });
+        this.notes = this.notes.filter(note => note.id !== id);
+        await this._writeIndex();
+      });
     }
 
     async _syncSelectedTab() {
@@ -323,6 +364,7 @@
         this._hidePage();
         return;
       }
+      if (this.currentNoteId === id && !document.getElementById("zen-notes-page")?.hidden) return;
       if (this.currentNoteId && this.currentNoteId !== id) await this._saveCurrentNow();
       await this._showNote(id);
     }
@@ -395,6 +437,7 @@
       });
       title.addEventListener("paste", (event) => this._pastePlainText(event));
 
+      page.addEventListener("contextmenu", event => this._editorContextMenu(event));
       canvas.append(title, editor);
       scroll.append(canvas);
       page.append(scroll);
@@ -428,6 +471,7 @@
       if (!page || !title || !editor) return;
 
       const data = await this._readNote(note);
+      if (this._destroyed || this._idFromTab(gBrowser.selectedTab) !== id || !this._getNote(id)) return;
       this.currentNoteId = id;
       this._loadingPage = true;
       this._activeLine = null;
@@ -480,7 +524,7 @@
       line.addEventListener("blur", () => {
         // Delay so clicks on task checkbox can complete before render.
         window.setTimeout(() => {
-          if (document.activeElement !== line) this._commitLine(line);
+          if (!this._contextMenuOpen && document.activeElement !== line) this._commitLine(line);
         }, 0);
       });
       line.addEventListener("input", () => {
@@ -498,6 +542,14 @@
     }
 
     _onLinePointerDown(event, line) {
+      if (event.button !== 0) return;
+      const link = event.target?.closest?.(".zen-notes-link, .zen-notes-wikilink");
+      if (link && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        event.stopPropagation();
+        this._followLink(link).catch(error => console.error(LOG, error));
+        return;
+      }
       const checkbox = event.target?.closest?.(".zen-notes-task-checkbox");
       if (checkbox) {
         event.preventDefault();
@@ -520,12 +572,13 @@
 
     _rawOffsetFromPointer(line, x, y) {
       const raw = line.dataset.raw || "";
+      const content = line.querySelector(".zen-notes-list-content") || line;
       let visibleOffset = (this._visibleTextForRaw(raw).length);
       try {
         const pos = document.caretPositionFromPoint?.(x, y);
         if (pos?.offsetNode && line.contains(pos.offsetNode)) {
           const range = document.createRange();
-          range.setStart(line, 0);
+          range.setStart(content, 0);
           range.setEnd(pos.offsetNode, pos.offset);
           visibleOffset = range.toString().length;
         }
@@ -555,9 +608,11 @@
     _visibleOffsetToRaw(raw, visibleOffset) {
       // Exact source/display mapping is expensive. For click placement, find the
       // closest source position whose rendered prefix has the requested length.
+      const prefix = raw.match(/^(?:\s*[-*+]\s+(?:\[[ xX]\]\s*)?|\s*\d+[.)]\s+|#{1,6}\s+|>\s?)/)?.[0].length || 0;
+      if (visibleOffset === 0) return prefix;
       let best = raw.length;
       let bestDelta = Infinity;
-      for (let i = 0; i <= raw.length; i++) {
+      for (let i = prefix; i <= raw.length; i++) {
         const len = this._visibleTextForRaw(raw.slice(0, i)).length;
         const delta = Math.abs(len - visibleOffset);
         if (delta < bestDelta) { best = i; bestDelta = delta; }
@@ -593,10 +648,9 @@
       const editor = document.getElementById("zen-notes-editor");
       if (!editor) return "";
       return Array.from(editor.querySelectorAll(":scope > .zen-notes-line"))
-        .map((line) => line.dataset.raw ?? "")
+        .map((line) => line.classList.contains("is-editing") ? this._lineText(line) : line.dataset.raw ?? "")
         .join("\n")
-        .replace(/[ \t]+$/gm, "")
-        .replace(/\n+$/, "");
+;
     }
 
     _renderAllLines() {
@@ -655,6 +709,21 @@
         return;
       }
 
+      const callout = raw.match(/^>\s*\[!([\w-]+)\][+-]?\s*(.*)$/);
+      if (callout) {
+        line.innerHTML = `<strong class="zen-notes-callout">${this._escape(callout[1].toUpperCase())}${callout[2] ? ": " + this._inline(callout[2]) : ""}</strong>`;
+        return;
+      }
+      const table = raw.trim();
+      if (table.startsWith("|") && table.endsWith("|")) {
+        const cells = table.slice(1, -1).split(/(?<!\\)\|/);
+        if (cells.every(cell => /^\s*:?-{3,}:?\s*$/.test(cell))) {
+          line.innerHTML = '<span class="zen-notes-rule"></span>';
+        } else {
+          line.innerHTML = `<span class="zen-notes-table-row" style="--columns:${cells.length}">${cells.map(cell => `<span>${this._inline(cell.trim())}</span>`).join("")}</span>`;
+        }
+        return;
+      }
       const quote = raw.match(/^>\s?(.*)$/);
       if (quote) {
         line.innerHTML = this._inline(quote[1]) || "<br/>";
@@ -694,10 +763,12 @@
       const stash = [];
       const token = (html) => `\uE000${stash.push(html) - 1}\uE001`;
 
+      text = text.replace(/\\([\\`*{}\[\]()#+.!_>~-])/g, (_, c) => token(c));
       text = text.replace(/`([^`]+)`/g, (_, c) => token(`<code>${c}</code>`));
       text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt) => token(`<span class="zen-notes-embed">🖼 ${alt || "image"}</span>`));
       text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => token(`<span class="zen-notes-link" data-href="${href.replace(/"/g, "&quot;")}">${label}</span>`));
       text = text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, alias) => token(`<span class="zen-notes-wikilink" data-target="${target.replace(/"/g, "&quot;")}">${alias || target}</span>`));
+      text = text.replace(/&lt;(https?:\/\/[^\s]+?)&gt;/g, (_, href) => token(`<span class="zen-notes-link" data-href="${href}">${href}</span>`));
       text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
       text = text.replace(/__([^_]+)__/g, "<strong>$1</strong>");
       text = text.replace(/~~([^~]+)~~/g, "<del>$1</del>");
@@ -724,6 +795,11 @@
       const key = event.key;
       if ((event.metaKey || event.ctrlKey) && !event.altKey) {
         const lower = key.toLowerCase();
+        if (lower === "k") {
+          event.preventDefault();
+          this._wrapSelection(line, "[", "](https://)");
+          return;
+        }
         if (lower === "b") {
           event.preventDefault();
           this._wrapSelection(line, "**", "**");
@@ -741,6 +817,7 @@
         }
       }
 
+      if (event.isComposing) return;
       if (key === "Enter") {
         event.preventDefault();
         this._handleEnter(line, event.shiftKey);
@@ -835,25 +912,8 @@
     _focusLine(line, offset = 0) {
       if (!line) return;
       this._activateLine(line);
-      // Focus + caret placement one frame later, same pattern already used
-      // for the title field: setting Selection right after replaceChildren
-      // can get silently overridden by Gecko's own focus-selection handling
-      // in this XHTML chrome document before the DOM has settled, which is
-      // what put the caret at position 0 (before the rendered bullet) on a
-      // freshly created list line.
-      //
-      // One rAF is not always enough: on a *freshly mutated* contenteditable,
-      // Gecko can run its own default selection/caret initialization after
-      // the "focus" event has already fired, silently collapsing our caret
-      // back to offset 0 one frame later. Re-assert the caret on a second
-      // rAF as well so it reliably lands after the list marker/prefix
-      // instead of before it.
-      const applyCaret = () => this._setCaret(line, offset);
-      requestAnimationFrame(() => {
-        line.focus();
-        applyCaret();
-        requestAnimationFrame(applyCaret);
-      });
+      line.focus();
+      this._setCaret(line, offset);
     }
 
     _replaceLineRaw(line, raw, caret = null) {
@@ -868,9 +928,9 @@
 
     _handleEnter(line, softBreak) {
       const raw = this._lineText(line);
-      const caret = this._caretOffset(line);
-      const before = raw.slice(0, caret);
-      const after = raw.slice(caret);
+      const { start, end } = this._selectionOffsets(line);
+      const before = raw.slice(0, start);
+      const after = raw.slice(end);
 
       if (softBreak) {
         // Markdown hard line break, stable in a line-based editor.
@@ -883,7 +943,7 @@
         return;
       }
 
-      const info = this._continuationForLine(raw, before, after);
+      const info = line.dataset.codeBlock === "true" ? { prefix: before.match(/^\s*/)[0] } : this._continuationForLine(raw, before, after);
       if (info.exitList) {
         this._replaceLineRaw(line, "", 0);
         return;
@@ -915,7 +975,8 @@
       const ordered = before.match(/^(\s*)(\d+)([.)])\s+/);
       if (ordered) return { prefix: `${ordered[1]}${Number(ordered[2]) + 1}${ordered[3]} `, currentRaw: before };
 
-      const quote = before.match(/^(\s*>\s?)/);
+      if (/^\s*(?:>\s*)+$/.test(fullRaw) && !after) return { exitList: true };
+      const quote = before.match(/^(\s*(?:>\s*)+)/);
       if (quote) return { prefix: quote[1], currentRaw: before };
 
       const indent = before.match(/^(\s+)/)?.[1] || "";
@@ -1027,12 +1088,15 @@
       document.execCommand("insertText", false, text);
     }
 
+    _boostDomain(id = this.currentNoteId) { return `${id}.zen-notes.local`; }
+
     async openNoteBoost() {
-      if (!ZenBoostsManager) return;
+      if (!ZenBoostsManager || !this.currentNoteId) return;
+      const domain = this._boostDomain();
       try {
-        let boost = ZenBoostsManager.loadActiveBoostFromStore(BOOST_DOMAIN);
-        if (!boost) boost = ZenBoostsManager.createNewBoost(BOOST_DOMAIN);
-        const uri = Services.io.newURI(BOOST_URI);
+        let boost = ZenBoostsManager.loadActiveBoostFromStore(this._boostDomain());
+        if (!boost) boost = ZenBoostsManager.createNewBoost(domain);
+        const uri = Services.io.newURI(`https://${domain}/`);
         const editorWindow = ZenBoostsManager.openBoostWindow(window, boost, uri);
         this._boostEditor = editorWindow;
         editorWindow?.addEventListener("load", () => {
@@ -1056,10 +1120,10 @@
 
     _applyBoost() {
       const page = document.getElementById("zen-notes-page");
-      if (!page || !ZenBoostsManager) return;
+      if (!page || !ZenBoostsManager || !this.currentNoteId) return;
 
       let data = null;
-      try { data = ZenBoostsManager.loadActiveBoostFromStore(BOOST_DOMAIN)?.boostEntry?.boostData || null; } catch {}
+      try { data = ZenBoostsManager.loadActiveBoostFromStore(this._boostDomain())?.boostEntry?.boostData || null; } catch {}
       const style = document.getElementById("zen-notes-boost-custom-css") || (() => {
         const s = this._html("style");
         s.id = "zen-notes-boost-custom-css";
@@ -1113,6 +1177,91 @@
       }
     }
 
+    _menuItem(label, action) {
+      const item = document.createXULElement("menuitem");
+      item.setAttribute("label", label);
+      item.dataset.zenNotesMenu = "true";
+      item.addEventListener("command", () => Promise.resolve().then(action).catch(error => console.error(LOG, error)));
+      return item;
+    }
+
+    _editorContextMenu(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const selection = window.getSelection();
+      const range = selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+      const target = event.target.closest("[contenteditable]");
+      let popup = document.getElementById("zen-notes-edit-menu");
+      if (!popup) {
+        popup = document.createXULElement("menupopup");
+        popup.id = "zen-notes-edit-menu";
+        popup.dataset.zenNotesMenu = "true";
+        (document.getElementById("mainPopupSet") || document.documentElement).append(popup);
+      }
+      this._contextMenuOpen = true;
+      popup.addEventListener("popuphidden", () => { this._contextMenuOpen = false; }, { once: true });
+      popup.replaceChildren();
+      for (const [label, command] of [["Copy", "copy"], ["Cut", "cut"], ["Paste", "paste"], ["Select All", "selectAll"]]) {
+        const item = this._menuItem(label, () => {
+          target?.focus();
+          if (range) { selection.removeAllRanges(); selection.addRange(range); }
+          if (command === "selectAll" && target) {
+            const all = document.createRange(); all.selectNodeContents(target);
+            selection.removeAllRanges(); selection.addRange(all);
+          } else document.execCommand(command);
+        });
+        if ((command === "copy" || command === "cut") && selection.isCollapsed) item.disabled = true;
+        popup.append(item);
+      }
+      popup.openPopupAtScreen(event.screenX, event.screenY, true);
+    }
+
+    _addSelectionMenu(popup) {
+      popup.querySelector("#zen-notes-add-selection")?.remove();
+      const context = window.gContextMenu;
+      const text = context?.contentData?.selectionInfo?.fullText || context?.textSelected || "";
+      if (typeof text !== "string" || !text.trim()) return;
+      const menu = document.createXULElement("menu");
+      menu.id = "zen-notes-add-selection";
+      menu.dataset.zenNotesMenu = "true";
+      menu.setAttribute("label", "Add to Note");
+      const choices = document.createXULElement("menupopup");
+      for (const note of this.notes) choices.append(this._menuItem(note.title, () => this._appendSelection(note.id, text)));
+      choices.append(this._menuItem("Create Note…", async () => {
+        const note = await this.createNote();
+        await this._appendSelection(note.id, text);
+      }));
+      menu.append(choices);
+      popup.append(menu);
+    }
+
+    async _appendSelection(id, text) {
+      if (this.currentNoteId === id) await this._saveCurrentNow();
+      await this._enqueueWrite(async () => {
+        const note = this._getNote(id);
+        if (!note || this._closingNotes.has(id)) return;
+        const data = await this._readNote(note);
+        await FileIO.writeUTF8(this._notePath(id), `# ${data.title}\n\n${data.body.replace(/\n+$/, "")}\n\n${text}\n`);
+        note.updatedAt = new Date().toISOString();
+        await this._writeIndex();
+      });
+      if (this.currentNoteId === id) await this._showNote(id);
+    }
+
+    async _followLink(link) {
+      if (link.dataset.target) {
+        const target = link.dataset.target;
+        const note = this.notes.find(note => note.title.toLowerCase() === target.toLowerCase());
+        if (note) {
+          gBrowser.selectedTab = this.noteTabs.get(note.id) || this._openNoteTab(note, { select: true });
+        }
+        return;
+      }
+      const href = link.dataset.href;
+      if (!/^https?:\/\//i.test(href || "")) return;
+      window.openTrustedLinkIn(href, "tab");
+    }
+
     _bindCreateButton() {
       const button = document.getElementById("zen-create-new-button");
       if (!button || button.dataset.zenNotesBound === "true") return;
@@ -1128,6 +1277,18 @@
       const popup = event.target;
       if (!popup || typeof popup.querySelectorAll !== "function") return;
 
+      if (popup.id === "contentAreaContextMenu") {
+        this._addSelectionMenu(popup);
+        return;
+      }
+      if (["tabContextMenu", "toolbar-context-menu", "zen-sidebar-context-menu"].includes(popup.id)) {
+        if (!popup.querySelector("[data-zen-notes-create]")) {
+          const item = this._menuItem("Create Note", () => this.createNote());
+          item.dataset.zenNotesCreate = "true";
+          popup.append(item);
+        }
+        return;
+      }
       if (popup.id === "zen-unified-site-data-panel") {
         this._patchSiteDataPanel(popup);
         // Zen's own script may (re)apply the disabled state on the Boost
@@ -1222,6 +1383,8 @@
       gBrowser?.tabContainer?.removeEventListener("TabSelect", this._onTabSelect);
       gBrowser?.tabContainer?.removeEventListener("TabClose", this._onTabClose);
       this.observer?.disconnect();
+      this.titleObserver?.disconnect();
+      document.querySelectorAll("[data-zen-notes-menu]").forEach(el => el.remove());
 
       if (ZenBoostsManager && globalThis.Services?.obs) {
         try { Services.obs.removeObserver(this._onBoostUpdate, "zen-boosts-update"); } catch {}

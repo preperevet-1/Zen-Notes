@@ -390,3 +390,8 @@
     font-size: calc(38px * var(--zen-notes-font-scale));
   }
 }
+
+.zen-notes-table-row { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); }
+.zen-notes-table-row > span { padding: 5px 10px; border: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
+.zen-notes-callout { display: block; padding: 8px 12px; border-radius: 6px; background: color-mix(in srgb, var(--zen-notes-accent) 12%, transparent); }
+.zen-notes-link, .zen-notes-wikilink { cursor: pointer; }
