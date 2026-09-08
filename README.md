@@ -90,3 +90,8 @@ Custom Boost CSS is scoped to `#zen-notes-page` so it cannot accidentally restyl
 - Hides the underlying `about:home` tabpanel only while a Zen Note is selected so it cannot cover the editor.
 - Uses Zen/Firefox's built-in `page-portrait.svg` for the **Create Note** popup icon.
 - Keeps the filled document glyph for the normal sidebar/tab icon.
+
+## 0.4.1 hotfix 3
+
+- Fixed the caret landing at offset 0 (before the list marker) instead of after it when: pressing Enter to continue a `-`/`1.`/`- [ ]`/`>` line, Backspace-merging into the previous line, or Left/Right crossing between lines. The caret is now re-asserted on a second animation frame, since Gecko can silently reset a freshly-focused note line's selection one frame after "focus" fires.
+- The native Zen **Boost** button and the **Boosts** section in the urlbar's site-data panel are keyed to the tab's real URL host. Since a Zen Note lives at `about:home#zen-note=<id>`, Zen never matched it to our boost (stored under the synthetic `zen-notes.local` domain), so the button stayed disabled and the Boosts list stayed empty — clicks never even reached our Boost bridge. The button is now re-enabled while a note tab is selected, and a "Zen Notes Boost" row is added to the list so it isn't blank; both are reverted for every other tab.

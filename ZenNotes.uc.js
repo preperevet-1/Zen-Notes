@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.4.1-alpha";
+  const VERSION = "0.4.1-alpha.hotfix3";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -820,9 +820,18 @@
       // in this XHTML chrome document before the DOM has settled, which is
       // what put the caret at position 0 (before the rendered bullet) on a
       // freshly created list line.
+      //
+      // One rAF is not always enough: on a *freshly mutated* contenteditable,
+      // Gecko can run its own default selection/caret initialization after
+      // the "focus" event has already fired, silently collapsing our caret
+      // back to offset 0 one frame later. Re-assert the caret on a second
+      // rAF as well so it reliably lands after the list marker/prefix
+      // instead of before it.
+      const applyCaret = () => this._setCaret(line, offset);
       requestAnimationFrame(() => {
         line.focus();
-        this._setCaret(line, offset);
+        applyCaret();
+        requestAnimationFrame(applyCaret);
       });
     }
 
@@ -1097,6 +1106,15 @@
     _onPopupShowing(event) {
       const popup = event.target;
       if (!popup || typeof popup.querySelectorAll !== "function") return;
+
+      if (popup.id === "zen-unified-site-data-panel") {
+        this._patchSiteDataPanel(popup);
+        // Zen's own script may (re)apply the disabled state on the Boost
+        // button slightly after "popupshowing" fires. Re-assert one frame
+        // later so our override reliably wins.
+        requestAnimationFrame(() => this._patchSiteDataPanel(popup));
+      }
+
       if (popup.querySelector("#zen-notes-create-menuitem")) return;
 
       const labels = Array.from(popup.children || [])
@@ -1123,6 +1141,48 @@
         else popup.insertBefore(item, popup.firstChild);
       } catch (error) {
         console.error(LOG, "Could not add Create Note", error);
+      }
+    }
+
+    // The site-data panel (bookmark/screenshot/reader/share row + Extensions
+    // + Boosts + Settings, opened from the identity icon in the urlbar) is a
+    // single DOM instance Zen reuses for every tab. Its "Boosts" section and
+    // its footer "Boost" button are both keyed to the tab's *real* URL host.
+    // A Zen Note lives at about:home#zen-note=<id>, so Zen never finds a
+    // match for our boost (stored under the synthetic "zen-notes.local"
+    // domain) — the button stays disabled and the Boosts section stays
+    // empty. Re-enable the button while a note is selected and add our own
+    // row to the (otherwise empty-looking) Boosts list, and undo both again
+    // for every other tab so normal sites are unaffected.
+    _patchSiteDataPanel(popup) {
+      const boostButton = popup.querySelector("#zen-site-data-boost");
+      const list = popup.querySelector("#zen-site-data-boost-list");
+      const ownRow = list?.querySelector("#zen-notes-boost-status");
+
+      if (!this.currentNoteId) {
+        ownRow?.remove();
+        return;
+      }
+
+      if (boostButton) {
+        boostButton.removeAttribute("disabled");
+        boostButton.disabled = false;
+      }
+
+      if (list && !ownRow) {
+        try {
+          const row = document.createXULElement("toolbarbutton");
+          row.id = "zen-notes-boost-status";
+          row.setAttribute("label", "Zen Notes Boost");
+          row.setAttribute("class", "subviewbutton");
+          row.addEventListener("command", () => {
+            try { popup.hidePopup?.(); } catch {}
+            this.openNoteBoost();
+          });
+          list.prepend(row);
+        } catch (error) {
+          console.error(LOG, "Could not patch site-data boost list", error);
+        }
       }
     }
 
@@ -1158,6 +1218,7 @@
       page?.parentElement?.classList?.remove("zen-notes-page-host");
       page?.remove();
       document.getElementById("zen-notes-create-menuitem")?.remove();
+      document.getElementById("zen-notes-boost-status")?.remove();
       document.getElementById("zen-notes-boost-custom-css")?.remove();
       try { this._boostEditor?.close?.(); } catch {}
     }
