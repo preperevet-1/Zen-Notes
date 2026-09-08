@@ -1,26 +1,28 @@
-# Zen Notes — 0.2.1 alpha
+# Zen Notes — 0.3.0 alpha
 
 Experimental Sine mod for Zen Browser.
 
-## Fixes in 0.2.1
+## Alpha 0.3 changes
 
-- The note page is mounted inside the selected tab's browser stack instead of over the whole Zen window, so the Zen sidebar/top UI stays usable.
-- Note tab IDs are additionally persisted through Firefox SessionStore, improving note-tab recovery after a browser restart.
-- Removed the Markdown hint/footer from the note page.
-- Improved live Markdown shortcuts with `beforeinput` handling and more reliable inline formatting.
+- Notes remain normal Zen tabs.
+- Uses a document-style monochrome icon for the note tab and **Create Note** menu item.
+- The backing internal page is now `about:home#zen-note=...` instead of `about:blank`, avoiding Zen's misleading **Not secure** identity for the blank page.
+- Markdown saving was rewritten so Firefox `contenteditable` wrappers no longer flatten lists. Bullet and numbered lists should survive switching tabs/restarting Zen.
+- More Obsidian-like editing behavior:
+  - headings `#` through `######`
+  - bullet and numbered lists
+  - list continuation on Enter
+  - empty list item + Enter exits the list
+  - Tab / Shift+Tab indents/outdents list items
+  - task lists (`- [ ]`, `- [x]`)
+  - bold, italic, inline code, strikethrough and highlight
+  - fenced code blocks and blockquotes
+- Notes are still stored as standalone `.md` files in `<Zen profile>/zen-notes/`.
 
-## Current Markdown shortcuts
+## Important: Zen Boosts
 
-- `# `, `## `, `### ` → headings
-- `- ` / `* ` → bullet list
-- `1. ` → numbered list
-- `> ` → quote
-- `**bold**`, `*italic*`, `` `code` `` → inline formatting
-- `Cmd/Ctrl+B`, `Cmd/Ctrl+I`
-- ````` + Enter`` → code block
+Boosts are **not fully supported yet** in this alpha. Zen's own Boosts manager only allows Boosts on `http` and `https` pages, while the current note editor is a browser-chrome overlay backed by an internal `about:` page. The correct fix is to move the editor into a real HTTPS content page / content actor in the next architecture step, rather than pretending Boosts work here.
 
-Notes are stored locally as standalone Markdown files in:
+## Install/update
 
-`<Zen profile>/zen-notes/`
-
-This is still an alpha build. No note hub/delete UI or "Add selection to note" context action yet.
+Replace the files in your GitHub repository, commit them, update/reinstall the mod in Sine, then restart Zen.

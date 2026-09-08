@@ -1,7 +1,15 @@
-/* Zen Notes 0.2.1-alpha */
+/* Zen Notes 0.3.0-alpha */
 
 #zen-notes-create-menuitem {
-  list-style-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6.75 3.75h7.9l2.6 2.6v13.9H6.75z' fill='none' stroke='context-fill' stroke-width='1.7' stroke-linejoin='round'/%3E%3Cpath d='M14.5 3.9v3h2.9M9.2 11h5.7M9.2 14.2h5.7' fill='none' stroke='context-fill' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E") !important;
+  -moz-context-properties: fill, fill-opacity, stroke !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+#zen-notes-create-menuitem > .menu-iconic-left > .menu-iconic-icon {
+  width: 18px !important;
+  height: 18px !important;
+  opacity: 0.86;
 }
 
 /* Notes are now real Zen/Firefox tabs; no separate NOTES section is created. */
@@ -53,7 +61,7 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
   outline: none;
   color: inherit;
   background: transparent;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  font-family: var(--zen-notes-font-family, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif);
   font-size: clamp(38px, 4vw, 52px);
   font-weight: 730;
   line-height: 1.12;
@@ -74,7 +82,7 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
   outline: none;
   color: inherit;
   background: transparent;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  font-family: var(--zen-notes-font-family, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif);
   font-size: 17px;
   line-height: 1.72;
   caret-color: currentColor;
@@ -91,6 +99,9 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
 #zen-notes-editor-content h1,
 #zen-notes-editor-content h2,
 #zen-notes-editor-content h3,
+#zen-notes-editor-content h4,
+#zen-notes-editor-content h5,
+#zen-notes-editor-content h6,
 #zen-notes-editor-content blockquote,
 #zen-notes-editor-content ul,
 #zen-notes-editor-content ol,
@@ -188,4 +199,46 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
     margin-bottom: 24px;
     font-size: 38px;
   }
+}
+
+
+/* Obsidian-style Markdown additions */
+#zen-notes-editor-content h4,
+#zen-notes-editor-content h5,
+#zen-notes-editor-content h6 {
+  margin-bottom: 0.36em;
+  padding-top: 0.5em;
+  line-height: 1.35;
+}
+#zen-notes-editor-content h4 { font-size: 1.08em; }
+#zen-notes-editor-content h5 { font-size: 1em; }
+#zen-notes-editor-content h6 { font-size: 0.94em; opacity: 0.8; }
+
+#zen-notes-editor-content .zen-notes-task-list {
+  list-style: none;
+  padding-left: 0.2em;
+}
+#zen-notes-editor-content .zen-notes-task-item {
+  display: list-item;
+  list-style: none;
+}
+#zen-notes-editor-content .zen-notes-task-checkbox {
+  appearance: auto;
+  width: 1em;
+  height: 1em;
+  margin: 0 0.55em 0 0;
+  vertical-align: -0.08em;
+}
+#zen-notes-editor-content .zen-notes-task-item[data-checked="true"] > span {
+  text-decoration: line-through;
+  opacity: 0.58;
+}
+#zen-notes-editor-content mark {
+  color: inherit;
+  background: color-mix(in srgb, #ffd95a 42%, transparent);
+  border-radius: 0.18em;
+  padding: 0 0.08em;
+}
+#zen-notes-editor-content del {
+  opacity: 0.65;
 }

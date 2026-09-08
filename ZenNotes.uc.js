@@ -2,8 +2,11 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.2.1-alpha";
-  const TAB_URL_PREFIX = "about:blank#zen-note=";
+  const VERSION = "0.3.0-alpha";
+  // about:home avoids the misleading “Not secure” identity shown by about:blank in Zen.
+  // SessionStore remains the canonical way to identify note tabs.
+  const TAB_URL_PREFIX = "about:home#zen-note=";
+  const LEGACY_TAB_URL_PREFIXES = ["about:blank#zen-note="];
 
   if (window.gZenNotes?.destroy) {
     try {
@@ -131,9 +134,11 @@
       }
 
       const spec = tab?.linkedBrowser?.currentURI?.spec || "";
-      if (!spec.startsWith(TAB_URL_PREFIX)) return null;
+      const prefixes = [TAB_URL_PREFIX, ...LEGACY_TAB_URL_PREFIXES];
+      const prefix = prefixes.find((candidate) => spec.startsWith(candidate));
+      if (!prefix) return null;
       try {
-        return decodeURIComponent(spec.slice(TAB_URL_PREFIX.length));
+        return decodeURIComponent(spec.slice(prefix.length));
       } catch {
         return null;
       }
@@ -216,7 +221,10 @@
     }
 
     _noteIconDataURI() {
-      return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6.75 3.75h7.9l2.6 2.6v13.9H6.75z' fill='none' stroke='%23888' stroke-width='1.7' stroke-linejoin='round'/%3E%3Cpath d='M14.5 3.9v3h2.9M9.2 11h5.7M9.2 14.2h5.7' fill='none' stroke='%23888' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E";
+      // Monochrome document outline matching the built-in Zen / macOS SF Symbols feel.
+      // It is intentionally a tiny inline SVG so the mod has no external icon dependency.
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7.25 2.75h6.95L18.75 7.3v13.95H7.25a2 2 0 0 1-2-2V4.75a2 2 0 0 1 2-2Z" fill="none" stroke="#7f7f7f" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2.95V7.5h4.5" fill="none" stroke="#7f7f7f" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      return `data:image/svg+xml,${encodeURIComponent(svg)}`;
     }
 
     _markTab(tab, note) {
@@ -432,7 +440,7 @@
         if (this._loadingPage) return;
 
         // Inline Markdown is rendered immediately after its closing marker is typed.
-        if (["*", "`", ")"].includes(event.data)) {
+        if (["*", "`", ")", "~", "="].includes(event.data)) {
           this._renderInlineMarkdownInCurrentBlock();
         }
         this._queueSave();
@@ -448,7 +456,7 @@
 
     _onEditorBeforeInput(event) {
       if (event.inputType !== "insertText" || event.data !== " ") return;
-      if (this._applyBlockMarkdownShortcut()) {
+      if (this._applyTaskMarkdownShortcut() || this._applyBlockMarkdownShortcut()) {
         event.preventDefault();
         this._queueSave();
       }
@@ -477,9 +485,18 @@
         }
       }
 
+      if (event.key === "Tab") {
+        const li = this._currentListItem();
+        if (li && this._indentListItem(li, event.shiftKey ? -1 : 1)) {
+          event.preventDefault();
+          this._queueSave();
+          return;
+        }
+      }
+
       if (event.key === " " && !event.metaKey && !event.ctrlKey && !event.altKey) {
         // Fallback for builds where beforeinput is not dispatched in browser chrome.
-        if (this._applyBlockMarkdownShortcut()) {
+        if (this._applyTaskMarkdownShortcut() || this._applyBlockMarkdownShortcut()) {
           event.preventDefault();
           this._queueSave();
           return;
@@ -487,6 +504,15 @@
       }
 
       if (event.key === "Enter" && !event.shiftKey) {
+        const li = this._currentListItem();
+        if (li) {
+          if (this._handleListEnter(li)) {
+            event.preventDefault();
+            this._queueSave();
+            return;
+          }
+        }
+
         const block = this._currentTopLevelBlock();
         if (block && block.textContent.trim() === "```") {
           event.preventDefault();
@@ -519,13 +545,136 @@
       if (!block) return false;
       const marker = (block.textContent || "").replace(/\u00a0/g, " ").trim();
 
-      if (marker === "#") return !!this._replaceBlock(block, "h1", "");
-      if (marker === "##") return !!this._replaceBlock(block, "h2", "");
-      if (marker === "###") return !!this._replaceBlock(block, "h3", "");
+      if (/^#{1,6}$/.test(marker)) return !!this._replaceBlock(block, `h${marker.length}`, "");
       if (marker === ">") return !!this._replaceBlock(block, "blockquote", "");
       if (marker === "-" || marker === "*") return !!this._replaceBlockWithList(block, "ul");
       if (/^\d+\.$/.test(marker)) return !!this._replaceBlockWithList(block, "ol");
       return false;
+    }
+
+    _applyTaskMarkdownShortcut() {
+      const li = this._currentListItem();
+      if (!li || li.classList.contains("zen-notes-task-item")) return false;
+      const marker = (li.textContent || "").replace(/ /g, " ").trim();
+      const match = marker.match(/^\[([ xX])\]$/);
+      if (!match) return false;
+
+      const checked = match[1].toLowerCase() === "x";
+      li.textContent = "";
+      li.classList.add("zen-notes-task-item");
+      li.dataset.checked = checked ? "true" : "false";
+      li.append(this._createTaskCheckbox(checked), document.createTextNode(""));
+      this._placeCaretAtEnd(li);
+      return true;
+    }
+
+    _createTaskCheckbox(checked = false) {
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.className = "zen-notes-task-checkbox";
+      input.checked = !!checked;
+      input.contentEditable = "false";
+      input.setAttribute("aria-label", "Task");
+      input.addEventListener("change", () => {
+        const li = input.closest("li");
+        if (li) li.dataset.checked = input.checked ? "true" : "false";
+        this._queueSave();
+      });
+      return input;
+    }
+
+    _currentListItem() {
+      const block = this._currentTextBlock();
+      return block?.tagName === "LI" ? block : null;
+    }
+
+    _selectionAtEnd(node) {
+      const selection = window.getSelection();
+      if (!selection?.rangeCount || !selection.isCollapsed) return false;
+      const caret = selection.getRangeAt(0).cloneRange();
+      const tail = document.createRange();
+      tail.selectNodeContents(node);
+      tail.collapse(false);
+      return caret.compareBoundaryPoints(Range.START_TO_START, tail) === 0;
+    }
+
+    _handleListEnter(li) {
+      const list = li.parentElement;
+      if (!list || !["UL", "OL"].includes(list.tagName)) return false;
+
+      const text = this._listItemInlineMarkdown(li).trim();
+      const isEmpty = text === "";
+      if (isEmpty) {
+        this._exitList(li);
+        return true;
+      }
+
+      // Let the browser split a line in the middle naturally. We only take over the
+      // common end-of-item case so list DOM stays deterministic across reloads.
+      if (!this._selectionAtEnd(li)) return false;
+
+      const next = document.createElement("li");
+      if (li.classList.contains("zen-notes-task-item")) {
+        next.classList.add("zen-notes-task-item");
+        next.dataset.checked = "false";
+        next.append(this._createTaskCheckbox(false), document.createTextNode(""));
+      } else {
+        next.append(document.createElement("br"));
+      }
+      li.after(next);
+      this._placeCaretAtEnd(next);
+      return true;
+    }
+
+    _exitList(li) {
+      const list = li.parentElement;
+      if (!list) return;
+
+      const p = this._emptyParagraph();
+      const trailing = [];
+      let cursor = li.nextElementSibling;
+      while (cursor) {
+        const next = cursor.nextElementSibling;
+        trailing.push(cursor);
+        cursor = next;
+      }
+
+      li.remove();
+      if (trailing.length) {
+        const tailList = document.createElement(list.tagName.toLowerCase());
+        if (list.classList.contains("zen-notes-task-list")) tailList.classList.add("zen-notes-task-list");
+        trailing.forEach((item) => tailList.append(item));
+        list.after(p, tailList);
+      } else {
+        list.after(p);
+      }
+      if (!list.children.length) list.remove();
+      this._placeCaretAtEnd(p);
+    }
+
+    _indentListItem(li, direction) {
+      const list = li.parentElement;
+      if (!list || !["UL", "OL"].includes(list.tagName)) return false;
+
+      if (direction > 0) {
+        const prev = li.previousElementSibling;
+        if (!prev) return false;
+        let nested = Array.from(prev.children).find((el) => el.tagName === list.tagName);
+        if (!nested) {
+          nested = document.createElement(list.tagName.toLowerCase());
+          prev.append(nested);
+        }
+        nested.append(li);
+        this._placeCaretAtEnd(li);
+        return true;
+      }
+
+      const parentLi = list.parentElement?.closest?.("li");
+      if (!parentLi) return false;
+      parentLi.after(li);
+      if (!list.children.length) list.remove();
+      this._placeCaretAtEnd(li);
+      return true;
     }
 
     _replaceBlock(block, tagName, text) {
@@ -578,7 +727,7 @@
       const block = this._currentTextBlock() || this._currentTopLevelBlock();
       if (!block || ["UL", "OL", "PRE"].includes(block.tagName)) return false;
       const raw = block.textContent;
-      if (!/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/.test(raw)) return false;
+      if (!/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*|~~[^~]+~~|==[^=]+==)/.test(raw)) return false;
 
       const html = this._inlineMarkdownToHTML(raw);
       if (html === this._escapeHTML(raw)) return false;
@@ -637,6 +786,8 @@
     _inlineMarkdownToHTML(text) {
       let html = this._escapeHTML(text);
       html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+      html = html.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+      html = html.replace(/==([^=]+)==/g, "<mark>$1</mark>");
       html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
       html = html.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
       html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2">$1</a>');
@@ -667,7 +818,7 @@
           continue;
         }
 
-        const heading = line.match(/^(#{1,3})\s+(.*)$/);
+        const heading = line.match(/^(#{1,6})\s+(.*)$/);
         if (heading) {
           const el = document.createElement(`h${heading[1].length}`);
           el.innerHTML = this._inlineMarkdownToHTML(heading[2]);
@@ -687,8 +838,21 @@
         if (/^[-*]\s+/.test(line)) {
           const ul = document.createElement("ul");
           while (i < lines.length && /^[-*]\s+/.test(lines[i])) {
+            const source = lines[i].replace(/^[-*]\s+/, "");
+            const task = source.match(/^\[([ xX])\]\s?(.*)$/);
             const li = document.createElement("li");
-            li.innerHTML = this._inlineMarkdownToHTML(lines[i].replace(/^[-*]\s+/, ""));
+            if (task) {
+              const checked = task[1].toLowerCase() === "x";
+              ul.classList.add("zen-notes-task-list");
+              li.classList.add("zen-notes-task-item");
+              li.dataset.checked = checked ? "true" : "false";
+              li.append(this._createTaskCheckbox(checked));
+              const span = document.createElement("span");
+              span.innerHTML = this._inlineMarkdownToHTML(task[2]);
+              li.append(span);
+            } else {
+              li.innerHTML = this._inlineMarkdownToHTML(source);
+            }
             ul.append(li);
             i += 1;
           }
@@ -727,9 +891,11 @@
         .map((child) => this._inlineNodeToMarkdown(child))
         .join("");
 
-      if (tag === "BR") return "";
+      if (tag === "BR" || tag === "INPUT") return "";
       if (tag === "STRONG" || tag === "B") return `**${inner}**`;
       if (tag === "EM" || tag === "I") return `*${inner}*`;
+      if (tag === "DEL" || tag === "S") return `~~${inner}~~`;
+      if (tag === "MARK") return `==${inner}==`;
       if (tag === "CODE") return `\`${inner}\``;
       if (tag === "A") {
         const href = node.getAttribute("href") || "";
@@ -738,40 +904,78 @@
       return inner;
     }
 
-    _editorToMarkdown(editor) {
-      const out = [];
+    _listItemInlineMarkdown(li) {
+      return Array.from(li.childNodes)
+        .filter((child) => !(child.nodeType === Node.ELEMENT_NODE && ["UL", "OL", "INPUT"].includes(child.tagName)))
+        .map((child) => this._inlineNodeToMarkdown(child))
+        .join("");
+    }
 
-      for (const node of editor.childNodes) {
-        if (node.nodeType === Node.TEXT_NODE) {
-          const text = node.nodeValue?.trimEnd();
-          if (text) out.push(text);
-          continue;
+    _listToMarkdownLines(list, depth = 0) {
+      const lines = [];
+      const indent = "  ".repeat(depth);
+      let number = 1;
+
+      for (const li of Array.from(list.children).filter((el) => el.tagName === "LI")) {
+        const task = li.classList.contains("zen-notes-task-item") || li.querySelector(":scope > .zen-notes-task-checkbox");
+        const checked = li.dataset.checked === "true" || li.querySelector(":scope > .zen-notes-task-checkbox")?.checked;
+        const marker = list.tagName === "OL" ? `${number}.` : "-";
+        const taskPrefix = task ? `[${checked ? "x" : " "}] ` : "";
+        lines.push(`${indent}${marker} ${taskPrefix}${this._listItemInlineMarkdown(li)}`.trimEnd());
+
+        for (const nested of Array.from(li.children).filter((el) => ["UL", "OL"].includes(el.tagName))) {
+          lines.push(...this._listToMarkdownLines(nested, depth + 1));
         }
-        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        number += 1;
+      }
+      return lines;
+    }
 
-        const tag = node.tagName;
-        if (tag === "H1") out.push(`# ${this._inlineNodeToMarkdown(node)}`);
-        else if (tag === "H2") out.push(`## ${this._inlineNodeToMarkdown(node)}`);
-        else if (tag === "H3") out.push(`### ${this._inlineNodeToMarkdown(node)}`);
-        else if (tag === "BLOCKQUOTE") out.push(`> ${this._inlineNodeToMarkdown(node)}`);
-        else if (tag === "UL") {
-          for (const li of node.children) out.push(`- ${this._inlineNodeToMarkdown(li)}`);
-        } else if (tag === "OL") {
-          let index = 1;
-          for (const li of node.children) {
-            out.push(`${index}. ${this._inlineNodeToMarkdown(li)}`);
-            index += 1;
+    _blockNodeToMarkdownLines(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.nodeValue || "";
+        return text.trim() ? [text] : [];
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return [];
+
+      const tag = node.tagName;
+      if (/^H[1-6]$/.test(tag)) {
+        return [`${"#".repeat(Number(tag.slice(1)))} ${this._inlineNodeToMarkdown(node)}`];
+      }
+      if (tag === "BLOCKQUOTE") return [`> ${this._inlineNodeToMarkdown(node)}`];
+      if (tag === "UL" || tag === "OL") return this._listToMarkdownLines(node);
+      if (tag === "PRE") return ["```", node.textContent || "", "```"];
+      if (tag === "P") return [this._inlineNodeToMarkdown(node)];
+
+      // Firefox contenteditable can insert DIV wrappers around lists/paragraphs.
+      // Recurse through those wrappers instead of flattening them to plain text,
+      // otherwise Markdown markers (notably '-' bullets) disappear after reload.
+      const blockChildren = Array.from(node.childNodes).filter((child) =>
+        child.nodeType === Node.ELEMENT_NODE &&
+        (/^H[1-6]$/.test(child.tagName) || ["P", "DIV", "BLOCKQUOTE", "UL", "OL", "PRE"].includes(child.tagName))
+      );
+      if (blockChildren.length) {
+        const lines = [];
+        for (const child of node.childNodes) {
+          if (child.nodeType === Node.TEXT_NODE) {
+            if ((child.nodeValue || "").trim()) lines.push(child.nodeValue || "");
+          } else if (child.nodeType === Node.ELEMENT_NODE) {
+            lines.push(...this._blockNodeToMarkdownLines(child));
           }
-        } else if (tag === "PRE") {
-          out.push("```");
-          out.push(node.textContent || "");
-          out.push("```");
-        } else {
-          out.push(this._inlineNodeToMarkdown(node));
         }
+        return lines;
       }
 
-      return out.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "");
+      return [this._inlineNodeToMarkdown(node)];
+    }
+
+    _editorToMarkdown(editor) {
+      const out = [];
+      for (const node of editor.childNodes) {
+        out.push(...this._blockNodeToMarkdownLines(node));
+      }
+      // Preserve meaningful blank lines but never collapse list content into wrappers.
+      return out.join("\n").replace(/\n{4,}/g, "\n\n\n").replace(/[ \t]+$/gm, "").replace(/\s+$/, "");
     }
 
     _bindCreateButton() {
@@ -810,6 +1014,7 @@
         item.id = "zen-notes-create-menuitem";
         item.setAttribute("label", "Create Note");
         item.setAttribute("class", "menuitem-iconic");
+        item.setAttribute("image", this._noteIconDataURI());
         item.addEventListener("command", () => {
           this.createNote().catch((error) => console.error(LOG, error));
         });
