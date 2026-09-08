@@ -428,3 +428,10 @@
 
 ::highlight(zen-notes-find) { background: #ffe38a; color: #222; }
 ::highlight(zen-notes-find-current) { background: #ffae42; color: #111; }
+
+[zen-notes-tab="true"] .tab-icon-image { transform: translateX(-1px); }
+.zen-notes-find { top: auto; right: auto; bottom: 18px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); }
+.zen-notes-found { outline: none; background: transparent; }
+::highlight(zen-notes-find) { background: #bbdefb; color: inherit; }
+::highlight(zen-notes-find-current) { background: #90caf9; color: inherit; }
+.zen-notes-source-marker { font-size: 0; }

@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.6.0-alpha";
+  const VERSION = "0.7.0-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -76,7 +76,7 @@
         document.addEventListener("keydown", this._onFindShortcut, true);
         document.addEventListener("popupshowing", this._onPopupShowing, false);
         gBrowser.tabContainer.addEventListener("TabSelect", this._onTabSelect);
-        gBrowser.tabContainer.addEventListener("TabClose", this._onTabClose);
+        document.addEventListener("TabClose", this._onTabClose, true);
         // Zen's real "Create Boost" entry lives at #zen-site-data-boost inside
         // the site-info panel (the one opened from the identity/permissions
         // icon in the urlbar). Intercept its "command" event in the capture
@@ -339,28 +339,12 @@
     async _onTabClose(event) {
       const tab = event.target;
       const id = this._idFromTab(tab);
+      if (this._closingNotes.has(id)) return;
       if (!id || window.closed || globalThis.gBrowser?.closing || event.detail?.adoptedBy) return;
       // Native TabClose is dispatched for removal; pinned unload/reset does not
       // dispatch it. Do not infer cancellation from DOM connectivity/animation.
       if (Array.from(gBrowser.tabs).some(other => other !== tab && !other.closing && this._idFromTab(other) === id)) return;
-      for (const otherWindow of Services.wm.getEnumerator("navigator:browser")) {
-        if (otherWindow === window || otherWindow.closed) continue;
-        if (Array.from(otherWindow.gBrowser?.tabs || []).some(other => !other.closing && this._idFromTab(other) === id)) return;
-      }
-      this._closingNotes.add(id);
-      if (id === this.currentNoteId) {
-        window.clearTimeout(this.saveTimer);
-        this.currentNoteId = null;
-        this._hidePage();
-      }
-      this.noteTabs.delete(id);
-      try { SessionStoreAPI?.deleteCustomTabValue?.(tab, "zen-notes-id"); } catch {}
-      await this._enqueueWrite(async () => {
-        await FileIO.writeUTF8(this._deletedPath(id), new Date().toISOString());
-        await FileIO.remove(this._notePath(id), { ignoreAbsent: true });
-        this.notes = this.notes.filter(note => note.id !== id);
-        await this._writeIndex();
-      });
+      await this._deleteNote(id);
     }
 
     async _syncSelectedTab() {
@@ -549,11 +533,14 @@
           if (!this._contextMenuOpen && document.activeElement !== line) this._commitLine(line);
         }, 0);
       });
-      line.addEventListener("input", () => {
+      line.addEventListener("input", (event) => {
         line.dataset.raw = this._lineText(line);
         this._classifyLine(line, line.dataset.raw, false);
+        if (!event.isComposing) this._refreshInline(line);
         this._queueSave();
       });
+      line.addEventListener("keyup", event => { if (!event.isComposing) this._refreshInline(line); });
+      line.addEventListener("compositionend", () => this._refreshInline(line));
       line.addEventListener("keydown", (event) => this._onLineKeyDown(event, line));
       line.addEventListener("paste", (event) => this._pastePlainText(event));
       return line;
@@ -841,6 +828,7 @@
       // sending focus to the URL/search field while a note is being edited.
       event.stopPropagation();
 
+      if (this._autoCloseMarker(event, line)) return;
       const selected = this._bodySelection();
       if (selected && selected.end > selected.start && this._editorMarkdown().slice(selected.start, selected.end).includes("\n") && ["Enter", "Backspace", "Delete"].includes(event.key)) {
         event.preventDefault(); this._replaceBodySelection(event.key === "Enter" ? "\n" : "", selected); return;
@@ -950,12 +938,17 @@
     }
 
     _setCaret(line, offset) {
-      const text = line.firstChild || line.appendChild(document.createTextNode(""));
-      const max = text.nodeType === Node.TEXT_NODE ? text.nodeValue.length : line.textContent.length;
-      const pos = Math.max(0, Math.min(offset, max));
+      if (!line.firstChild) line.appendChild(document.createTextNode(""));
+      let remaining = Math.max(0, Math.min(offset, line.textContent.length));
+      const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+      let node, last = null;
       const range = document.createRange();
-      if (text.nodeType === Node.TEXT_NODE) range.setStart(text, pos);
-      else { range.selectNodeContents(line); range.collapse(false); }
+      while ((node = walker.nextNode())) {
+        last = node;
+        if (remaining <= node.length) { range.setStart(node, remaining); break; }
+        remaining -= node.length;
+      }
+      if (!node) { if (last) range.setStart(last, last.length); else { range.selectNodeContents(line); range.collapse(false); } }
       range.collapse(true);
       const sel = window.getSelection();
       sel.removeAllRanges();
@@ -1256,6 +1249,144 @@
       }
     }
 
+    async _deleteNote(id) {
+      if (this._closingNotes.has(id)) return;
+      const controllers = [];
+      for (const win of Services.wm.getEnumerator("navigator:browser")) {
+        const controller = win.gZenNotes;
+        if (!controller) continue;
+        controllers.push({ win, controller });
+        controller._closingNotes.add(id);
+        controller.notes = controller.notes.filter(note => note.id !== id);
+        if (controller.currentNoteId === id) {
+          win.clearTimeout(controller.saveTimer);
+          controller.currentNoteId = null; controller._hidePage();
+        }
+        controller.noteTabs.delete(id);
+      }
+      this._closingNotes.add(id);
+      this.notes = this.notes.filter(note => note.id !== id);
+      await this._enqueueWrite(async () => {
+        await FileIO.writeUTF8(this._deletedPath(id), new Date().toISOString());
+        await FileIO.remove(this._notePath(id), { ignoreAbsent: true });
+        await this._writeIndex();
+      });
+      for (const { win } of controllers) {
+        for (const tab of Array.from(win.gBrowser.tabs)) {
+          if (!tab.closing && this._idFromTab(tab) === id) win.gBrowser.removeTab(tab, { animate: false });
+        }
+      }
+    }
+
+    async _pickFile(mode, title, extension) {
+      const picker = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
+      picker.init(window.browsingContext, title, mode);
+      picker.appendFilter(extension.toUpperCase(), `*.${extension}`);
+      picker.defaultExtension = extension;
+      picker.defaultString = `${(this._getNote(this.currentNoteId)?.title || "Note").replace(/[\\/:*?"<>|]/g, "-")}.${extension}`;
+      const result = await new Promise(resolve => picker.open(resolve));
+      return result === Ci.nsIFilePicker.returnOK || result === Ci.nsIFilePicker.returnReplace ? picker.file.path : null;
+    }
+
+    async _exportNote(extension = "md") {
+      await this._saveCurrentNow();
+      const note = this._getNote(this.currentNoteId);
+      if (!note) return;
+      const data = await this._readNote(note);
+      const path = await this._pickFile(Ci.nsIFilePicker.modeSave, "Export Note", extension);
+      if (!path) return;
+      let text = `# ${data.title}\n\n${data.body}`;
+      if (extension === "html") text = this._exportHTML(data);
+      await FileIO.writeUTF8(path, text);
+    }
+
+    _exportHTML(data) {
+      const inline = text => this._inline(text).replace(/<span class="zen-notes-link" data-href="(https?:[^\"]*)">(.*?)<\/span>/g, '<a href="$1">$2</a>');
+      const output = [];
+      const lines = data.body.split("\n");
+      let fence = null;
+      for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i];
+        if (/^\s*```/.test(raw)) { if (fence !== null) { output.push(`<pre><code>${this._escape(fence.join('\n'))}</code></pre>`); fence = null; } else fence = []; continue; }
+        if (fence !== null) { fence.push(raw); continue; }
+        const heading = raw.match(/^(#{1,6})\s+(.*)$/);
+        if (heading) { output.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`); continue; }
+        if (/^\s*\|.*\|\s*$/.test(raw)) {
+          const rows = [];
+          while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+            const cells = lines[i].trim().slice(1, -1).split(/(?<!\\)\|/);
+            if (!cells.every(cell => /^\s*:?-{3,}:?\s*$/.test(cell))) rows.push(`<tr>${cells.map(cell => `<td>${inline(cell.trim())}</td>`).join('')}</tr>`);
+            i++;
+          }
+          i--; output.push(`<table>${rows.join('')}</table>`); continue;
+        }
+        if (/^\s*(---|\*\*\*|___)\s*$/.test(raw)) { output.push('<hr>'); continue; }
+        if (/^>\s?/.test(raw)) { output.push(`<blockquote>${inline(raw.replace(/^>\s?/, ''))}</blockquote>`); continue; }
+        if (/^\s*[-*+]\s+/.test(raw)) { output.push(`<ul><li>${inline(raw.replace(/^\s*[-*+]\s+/, ''))}</li></ul>`); continue; }
+        output.push(raw ? `<p>${inline(raw)}</p>` : '');
+      }
+      if (fence !== null) output.push(`<pre><code>${this._escape(fence.join('\n'))}</code></pre>`);
+      return `<!doctype html><html><head><meta charset="utf-8"><title>${this._escape(data.title)}</title><style>body{font:16px/1.6 system-ui;max-width:860px;margin:40px auto;padding:0 20px}table{border-collapse:collapse}td{border:1px solid #bbb;padding:6px 12px}img{max-width:100%}pre{white-space:pre-wrap}blockquote{border-left:3px solid #aaa;padding-left:15px}</style></head><body><h1>${this._escape(data.title)}</h1>${output.join('\n')}</body></html>`;
+    }
+
+    async _importNote() {
+      const path = await this._pickFile(Ci.nsIFilePicker.modeOpen, "Import Markdown Note", "md");
+      if (!path) return;
+      const raw = (await FileIO.readUTF8(path)).replace(/\r\n/g, "\n");
+      const note = await this.createNote();
+      const match = raw.match(/^# (.*)\n(?:\n)?/);
+      document.getElementById("zen-notes-page-title").textContent = match ? match[1] : "Imported Note";
+      this._setBody(match ? raw.slice(match[0].length) : raw);
+      await this._saveCurrentNow();
+      return note;
+    }
+
+    _autoCloseMarker(event, line) {
+      if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return false;
+      const raw = this._lineText(line), { start, end } = this._selectionOffsets(line), key = event.key;
+      if (!['*', '_', '`', '~', '='].includes(key)) {
+        if (key === ' ' && start === end && start === 1 && raw === '**') {
+          event.preventDefault(); this._replaceLineRaw(line, '* ', 2); return true;
+        }
+        if (key === ' ' && start === end && /[*_`~=]/.test(raw[start] || '') && start > 1) {
+          const closing = raw.slice(start).match(/^(\*\*|__|~~|==|[*_`])/)[0];
+          event.preventDefault(); this._replaceLineRaw(line, raw.slice(0, start + closing.length) + ' ' + raw.slice(start + closing.length), start + closing.length + 1); return true;
+        }
+        return false;
+      }
+      event.preventDefault();
+      if (start === end && raw[start] === key) {
+        if (['*', '_', '~', '='].includes(key) && raw === key + key && start === 1) {
+          this._replaceLineRaw(line, raw.slice(0, start) + key + key + raw.slice(start), start + 1);
+        } else this._setCaret(line, start + 1);
+      } else if (start !== end || start === 0 || /[\s([{]/.test(raw[start - 1])) {
+        this._replaceLineRaw(line, raw.slice(0, start) + key + raw.slice(start, end) + key + raw.slice(end), start + 1);
+      } else this._insertAtSelection(line, key);
+      return true;
+    }
+
+    _refreshInline(line) {
+      if (!line.classList.contains("is-editing") || line.dataset.codeBlock === "true") return;
+      const selected = this._selectionOffsets(line);
+      if (selected.start !== selected.end) return;
+      const raw = this._lineText(line); line.dataset.raw = raw;
+      const pattern = /(\*\*|__|~~|==|`|\*|_)([^\n]+?)\1/g;
+      let result = '', end = 0, match;
+      while ((match = pattern.exec(raw))) {
+        result += this._escape(raw.slice(end, match.index));
+        const finish = match.index + match[0].length;
+        if (selected.start >= match.index && selected.start < finish) result += this._escape(match[0]);
+        else {
+          const tag = { '**': 'strong', '__': 'strong', '~~': 'del', '==': 'mark', '`': 'code', '*': 'em', '_': 'em' }[match[1]];
+          const marker = `<span class="zen-notes-source-marker">${this._escape(match[1])}</span>`;
+          result += `${marker}<${tag}>${this._escape(match[2])}</${tag}>${marker}`;
+        }
+        end = finish;
+      }
+      result += this._escape(raw.slice(end));
+      if (line.innerHTML !== result) { line.innerHTML = result; this._setCaret(line, selected.start); }
+    }
+
     _snapshot() {
       return { title: document.getElementById("zen-notes-page-title")?.textContent || "",
         body: this._editorMarkdown() };
@@ -1343,7 +1474,13 @@
 
     _format(action, selection = this._bodySelection()) {
       if (!selection) return;
-      const selected = this._editorMarkdown().slice(selection.start, selection.end);
+      let selected = this._editorMarkdown().slice(selection.start, selection.end);
+      const note = this._getNote(this.currentNoteId);
+      if (action === "clear") {
+        const change = [...(note?.caseChanges || [])].reverse().find(change => change.after === selected);
+        if (change) selected = change.before;
+        else if (selected === selected.toLocaleUpperCase() && selected !== selected.toLocaleLowerCase()) selected = selected.toLocaleLowerCase();
+      }
       const wraps = { bold: ["**", "**"], italic: ["*", "*"], strike: ["~~", "~~"], underline: ["<u>", "</u>"], spoiler: ["||", "||"], code: ["`", "`"], link: ["[", "](https://)"] };
       let value = selected;
       if (wraps[action]) value = wraps[action][0] + selected + wraps[action][1];
@@ -1353,6 +1490,9 @@
       else if (action === "upper") value = selected.toLocaleUpperCase();
       else if (action === "lower") value = selected.toLocaleLowerCase();
       else if (action === "capitalize") value = selected.toLocaleLowerCase().replace(/(^|\s)(\p{L})/gu, (_, space, letter) => space + letter.toLocaleUpperCase());
+      if (note && ["upper", "lower", "capitalize"].includes(action)) {
+        note.caseChanges = [...(note.caseChanges || []), { before: selected, after: value }].slice(-50);
+      }
       this._replaceBodySelection(value, selection);
     }
 
@@ -1412,7 +1552,7 @@
             CSS.highlights.set("zen-notes-find", new Highlight(...ranges));
             CSS.highlights.set("zen-notes-find-current", new Highlight(...(ranges[this._findIndex] ? [ranges[this._findIndex]] : [])));
           }
-          if (hit) { hit.classList.add("zen-notes-found"); hit.scrollIntoView({ block: "center" }); }
+          if (hit) { hit.scrollIntoView({ block: "center" }); }
           count.textContent = matches.length ? `${this._findIndex + 1} / ${matches.length}` : "0 results";
         };
         input.addEventListener("input", () => search());
@@ -1479,6 +1619,14 @@
         item.disabled = !bodySelection; options.append(item);
       }
       formatting.append(options); popup.append(document.createXULElement("menuseparator"), formatting);
+      popup.append(this._menuItem("Add Divider", () => {
+        const position = bodySelection || { start: this._editorMarkdown().length, end: this._editorMarkdown().length };
+        this._replaceBodySelection("\n\n---\n\n", position);
+      }));
+      popup.append(document.createXULElement("menuseparator"));
+      popup.append(this._menuItem("Export Markdown…", () => this._exportNote("md")));
+      popup.append(this._menuItem("Export HTML…", () => this._exportNote("html")));
+      popup.append(this._menuItem("Import Markdown…", () => this._importNote()));
       popup.openPopupAtScreen(event.screenX, event.screenY, true);
     }
 
@@ -1504,6 +1652,7 @@
       menu.setAttribute("label", "Add to Note");
       const choices = document.createXULElement("menupopup");
       for (const note of this.notes.filter(note => this._hasOpenNoteTab(note.id))) choices.append(this._menuItem(note.title, () => this._appendSelection(note.id, text)));
+      choices.append(document.createXULElement("menuseparator"));
       choices.append(this._menuItem("Create Note…", async () => {
         const note = await this.createNote();
         await this._appendSelection(note.id, text);
@@ -1579,6 +1728,13 @@
       }
       if (popup.id === "tabContextMenu") {
         popup.querySelector("[data-zen-notes-create]")?.remove();
+        popup.querySelector("#zen-notes-delete-note")?.remove();
+        const tab = globalThis.TabContextMenu?.contextTab;
+        const id = this._idFromTab(tab);
+        if (id && this._getNote(id)) {
+          const item = this._menuItem("Delete Note Permanently", () => this._deleteNote(id));
+          item.id = "zen-notes-delete-note"; popup.append(item);
+        }
         return;
       }
       if (["toolbar-context-menu", "zen-sidebar-context-menu"].includes(popup.id)) {
@@ -1680,7 +1836,7 @@
       document.removeEventListener("popupshowing", this._onPopupShowing, false);
       document.removeEventListener("command", this._onNativeBoostButton, true);
       gBrowser?.tabContainer?.removeEventListener("TabSelect", this._onTabSelect);
-      gBrowser?.tabContainer?.removeEventListener("TabClose", this._onTabClose);
+      document.removeEventListener("TabClose", this._onTabClose, true);
       this.observer?.disconnect();
       this.titleObserver?.disconnect();
       document.querySelectorAll("[data-zen-notes-menu]").forEach(el => el.remove());
