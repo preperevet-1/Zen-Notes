@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.5.1-alpha";
+  const VERSION = "0.5.2-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -101,7 +101,7 @@
 
         this._bindCreateButton();
         this._recoverExistingNoteTabs();
-        await this._restoreMissingNoteTabs();
+        // SessionStore restores tabs. An index entry alone must never reopen a note.
         await this._syncSelectedTab();
         this._applyBoost();
 
@@ -134,6 +134,7 @@
       try {
         const parsed = JSON.parse(await FileIO.readUTF8(this.indexPath));
         this.notes = Array.isArray(parsed?.notes) ? parsed.notes : [];
+        await this._filterDeletedNotes();
       } catch (error) {
         console.error(LOG, "Could not read index", error);
         this.notes = [];
@@ -146,7 +147,20 @@
       return pending;
     }
 
+    _deletedPath(id) { return Paths.join(this.storageDir, `${id}.deleted`); }
+
+    async _filterDeletedNotes() {
+      const keep = [];
+      for (const note of this.notes) {
+        if (await FileIO.exists(this._deletedPath(note.id))) continue;
+        keep.push(note);
+      }
+      this.notes = keep;
+    }
+
     async _writeIndex() {
+      // Persistent tombstones also reject stale copies held by another window.
+      await this._filterDeletedNotes();
       await FileIO.writeUTF8(
         this.indexPath,
         JSON.stringify({ version: 4, notes: this.notes }, null, 2)
@@ -231,7 +245,7 @@
       note.updatedAt = new Date().toISOString();
 
       await this._enqueueWrite(async () => {
-        if (this._closingNotes.has(note.id)) return;
+        if (this._closingNotes.has(note.id) || await FileIO.exists(this._deletedPath(note.id))) return;
         await FileIO.writeUTF8(this._notePath(note.id), `# ${noteTitle}\n\n${body}`);
         await this._writeIndex();
       });
@@ -312,13 +326,6 @@
       }
     }
 
-    async _restoreMissingNoteTabs() {
-      for (const note of [...this.notes].reverse()) {
-        if (this.noteTabs.has(note.id)) continue;
-        this.noteTabs.set(note.id, this._openNoteTab(note, { background: true }));
-      }
-    }
-
     _syncTabAppearance(id) {
       const note = this._getNote(id);
       const tab = this.noteTabs.get(id);
@@ -331,12 +338,8 @@
       const tab = event.target;
       const id = this._idFromTab(tab);
       if (!id || window.closed || globalThis.gBrowser?.closing || event.detail?.adoptedBy) return;
-      // A pinned-tab reset/unload leaves the tab connected and is not deletion.
-      await new Promise(resolve => window.setTimeout(resolve, 0));
-      if (tab.isConnected && !tab.closing) {
-        this._syncTabAppearance(id);
-        return;
-      }
+      // Native TabClose is dispatched for removal; pinned unload/reset does not
+      // dispatch it. Do not infer cancellation from DOM connectivity/animation.
       if (Array.from(gBrowser.tabs).some(other => other !== tab && !other.closing && this._idFromTab(other) === id)) return;
       for (const otherWindow of Services.wm.getEnumerator("navigator:browser")) {
         if (otherWindow === window || otherWindow.closed) continue;
@@ -351,6 +354,7 @@
       this.noteTabs.delete(id);
       try { SessionStoreAPI?.deleteCustomTabValue?.(tab, "zen-notes-id"); } catch {}
       await this._enqueueWrite(async () => {
+        await FileIO.writeUTF8(this._deletedPath(id), new Date().toISOString());
         await FileIO.remove(this._notePath(id), { ignoreAbsent: true });
         this.notes = this.notes.filter(note => note.id !== id);
         await this._writeIndex();
@@ -1230,8 +1234,17 @@
       popup.openPopupAtScreen(event.screenX, event.screenY, true);
     }
 
+    _hasOpenNoteTab(id) {
+      for (const browserWindow of Services.wm.getEnumerator("navigator:browser")) {
+        if (browserWindow.closed) continue;
+        if (Array.from(browserWindow.gBrowser?.tabs || []).some(tab => !tab.closing && this._idFromTab(tab) === id)) return true;
+      }
+      return false;
+    }
+
     _addSelectionMenu(popup) {
       popup.querySelector("#zen-notes-add-selection")?.remove();
+      popup.querySelector("#zen-notes-add-selection-separator")?.remove();
       const context = window.gContextMenu;
       const text = context?.selectionInfo?.fullText || context?.contentData?.selectionInfo?.fullText || context?.selectedText || "";
       if (typeof text !== "string" || !text.trim()) return;
@@ -1240,20 +1253,29 @@
       menu.dataset.zenNotesMenu = "true";
       menu.setAttribute("label", "Add to Note");
       const choices = document.createXULElement("menupopup");
-      for (const note of this.notes) choices.append(this._menuItem(note.title, () => this._appendSelection(note.id, text)));
+      for (const note of this.notes.filter(note => this._hasOpenNoteTab(note.id))) choices.append(this._menuItem(note.title, () => this._appendSelection(note.id, text)));
       choices.append(this._menuItem("Create Note…", async () => {
         const note = await this.createNote();
         await this._appendSelection(note.id, text);
       }));
       menu.append(choices);
-      popup.append(menu);
+      const separator = document.createXULElement("menuseparator");
+      separator.id = "zen-notes-add-selection-separator";
+      separator.dataset.zenNotesMenu = "true";
+      const first = Array.from(popup.children).find(node =>
+        node.localName === "menuseparator" && !node.hidden &&
+        node.getAttribute("hidden") !== "true" &&
+        window.getComputedStyle(node).display !== "none");
+      const anchor = first ? first.nextSibling : popup.firstChild;
+      popup.insertBefore(menu, anchor);
+      popup.insertBefore(separator, anchor);
     }
 
     async _appendSelection(id, text) {
       if (this.currentNoteId === id) await this._saveCurrentNow();
       await this._enqueueWrite(async () => {
         const note = this._getNote(id);
-        if (!note || this._closingNotes.has(id)) return;
+        if (!note || this._closingNotes.has(id) || await FileIO.exists(this._deletedPath(id))) return;
         const data = await this._readNote(note);
         await FileIO.writeUTF8(this._notePath(id), `# ${data.title}\n\n${data.body.replace(/\n+$/, "")}\n\n${text}\n`);
         note.updatedAt = new Date().toISOString();
