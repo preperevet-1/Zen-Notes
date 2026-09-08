@@ -59,6 +59,7 @@
       this._onTabClose = this._onTabClose.bind(this);
       this._onMutation = this._onMutation.bind(this);
       this._onBoostUpdate = this._onBoostUpdate.bind(this);
+      this._onNativeBoostButton = this._onNativeBoostButton.bind(this);
     }
 
     async init() {
@@ -69,6 +70,13 @@
         document.addEventListener("popupshowing", this._onPopupShowing, true);
         gBrowser.tabContainer.addEventListener("TabSelect", this._onTabSelect);
         gBrowser.tabContainer.addEventListener("TabClose", this._onTabClose);
+        // Zen's real "Create Boost" entry lives at #zen-site-data-boost inside
+        // the site-info panel (the one opened from the identity/permissions
+        // icon in the urlbar). Intercept its "command" event in the capture
+        // phase so, while a note tab is selected, it opens OUR boost editor
+        // (zen-notes.local) instead of trying to boost the note tab's real
+        // about:home URL.
+        document.addEventListener("command", this._onNativeBoostButton, true);
 
         this.observer = new MutationObserver(this._onMutation);
         this.observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -89,6 +97,20 @@
         console.error(LOG, "Initialization failed", error);
       }
     }
+
+    _onNativeBoostButton(event) {
+      if (!this.currentNoteId) return;
+      const target = event.target?.closest?.("#zen-site-data-boost");
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      try {
+        target.closest("panel")?.hidePopup?.();
+      } catch {}
+      this.openNoteBoost();
+    }
+
 
     async _loadIndex() {
       if (!(await FileIO.exists(this.indexPath))) {
@@ -320,17 +342,6 @@
       const canvas = this._html("main");
       canvas.className = "zen-notes-page-canvas";
 
-      const topActions = this._html("div");
-      topActions.className = "zen-notes-top-actions";
-      const boostButton = this._html("button");
-      boostButton.id = "zen-notes-boost-button";
-      boostButton.type = "button";
-      boostButton.textContent = "Boost";
-      boostButton.title = ZenBoostsManager ? "Edit Zen Boost for all Zen Notes" : "Zen Boosts unavailable in this build";
-      boostButton.disabled = !ZenBoostsManager;
-      boostButton.addEventListener("click", () => this.openNoteBoost());
-      topActions.append(boostButton);
-
       const title = this._html("div");
       title.id = "zen-notes-page-title";
       this._setPlainEditable(title);
@@ -363,7 +374,7 @@
       });
       title.addEventListener("paste", (event) => this._pastePlainText(event));
 
-      canvas.append(topActions, title, editor);
+      canvas.append(title, editor);
       scroll.append(canvas);
       page.append(scroll);
       host.append(page);
@@ -728,6 +739,31 @@
         this._moveVertical(line, key === "ArrowUp" ? -1 : 1);
         return;
       }
+      if ((key === "ArrowLeft" || key === "ArrowRight") && !event.altKey) {
+        // Same fix as Up/Down: an unhandled arrow key leaves the event
+        // un-prevented, and Zen's global shortcut steals it into the
+        // search/URL bar. Explicitly prevent it and drive the caret
+        // ourselves, crossing into the previous/next line at the boundary
+        // (each line is its own isolated contenteditable, so the browser
+        // can't do that crossing on its own).
+        event.preventDefault();
+        const dir = key === "ArrowLeft" ? "backward" : "forward";
+        const granularity = (event.ctrlKey || event.metaKey) ? "word" : "character";
+        const before = this._caretOffset(line);
+        const raw = this._lineText(line);
+        const atBoundary = dir === "backward" ? before === 0 : before === raw.length;
+        if (atBoundary && !event.shiftKey) {
+          const target = dir === "backward" ? line.previousElementSibling : line.nextElementSibling;
+          if (target?.classList.contains("zen-notes-line")) {
+            this._commitLine(line);
+            const targetRaw = target.dataset.raw ?? "";
+            this._focusLine(target, dir === "backward" ? targetRaw.length : 0);
+            return;
+          }
+        }
+        window.getSelection()?.modify(event.shiftKey ? "extend" : "move", dir, granularity);
+        return;
+      }
       if (key === "Escape") {
         event.preventDefault();
         line.blur();
@@ -778,8 +814,16 @@
     _focusLine(line, offset = 0) {
       if (!line) return;
       this._activateLine(line);
-      line.focus();
-      this._setCaret(line, offset);
+      // Focus + caret placement one frame later, same pattern already used
+      // for the title field: setting Selection right after replaceChildren
+      // can get silently overridden by Gecko's own focus-selection handling
+      // in this XHTML chrome document before the DOM has settled, which is
+      // what put the caret at position 0 (before the rendered bullet) on a
+      // freshly created list line.
+      requestAnimationFrame(() => {
+        line.focus();
+        this._setCaret(line, offset);
+      });
     }
 
     _replaceLineRaw(line, raw, caret = null) {
@@ -1093,6 +1137,7 @@
       this._destroyed = true;
       window.clearTimeout(this.saveTimer);
       document.removeEventListener("popupshowing", this._onPopupShowing, true);
+      document.removeEventListener("command", this._onNativeBoostButton, true);
       gBrowser?.tabContainer?.removeEventListener("TabSelect", this._onTabSelect);
       gBrowser?.tabContainer?.removeEventListener("TabClose", this._onTabClose);
       this.observer?.disconnect();

@@ -22,8 +22,8 @@
 /* The note favicon is intentionally filled in the regular Zen tab/sidebar. */
 tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
   -moz-context-properties: fill, fill-opacity, stroke, stroke-opacity !important;
-  fill: currentColor !important;
-  stroke: currentColor !important;
+  fill: #888891 !important;
+  stroke: #888891 !important;
   width: 16px !important;
   height: 16px !important;
   opacity: 0.9 !important;
@@ -102,40 +102,6 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
   margin: 0 auto;
   padding: 68px 0 140px;
   filter: var(--zen-notes-boost-filter, none);
-}
-
-.zen-notes-top-actions {
-  display: flex;
-  justify-content: flex-end;
-  min-height: 28px;
-  margin: 0 0 6px;
-}
-
-#zen-notes-boost-button {
-  appearance: none;
-  border: 0;
-  border-radius: 9px;
-  padding: 5px 9px;
-  color: inherit;
-  background: transparent;
-  font: 500 12px/1 var(--zen-notes-font-family);
-  opacity: 0;
-  cursor: default;
-  transition: opacity 120ms ease, background-color 120ms ease;
-}
-
-#zen-notes-page:hover #zen-notes-boost-button,
-#zen-notes-boost-button:focus-visible {
-  opacity: 0.48;
-}
-
-#zen-notes-boost-button:hover:not(:disabled) {
-  opacity: 0.8;
-  background: color-mix(in srgb, currentColor 7%, transparent);
-}
-
-#zen-notes-boost-button:disabled {
-  display: none;
 }
 
 #zen-notes-page-title {
