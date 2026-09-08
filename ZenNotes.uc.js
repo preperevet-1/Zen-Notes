@@ -590,7 +590,7 @@
       if (isCode) {
         line.innerHTML = isFence
           ? `<span class="zen-notes-md-marker">${this._escape(raw)}</span>`
-          : `<span class="zen-notes-code-line">${this._escape(raw) || "<br>"}</span>`;
+          : `<span class="zen-notes-code-line">${this._escape(raw) || "<br/>"}</span>`;
         return;
       }
 
@@ -599,33 +599,33 @@
         const depth = Math.floor(task[1].length / INDENT.length);
         line.style.setProperty("--zen-notes-indent", depth);
         const checked = task[2].toLowerCase() === "x";
-        line.innerHTML = `<span class="zen-notes-task-checkbox" data-checked="${checked}"></span><span class="zen-notes-list-content${checked ? " is-done" : ""}">${this._inline(task[3]) || "<br>"}</span>`;
+        line.innerHTML = `<span class="zen-notes-task-checkbox" data-checked="${checked}"></span><span class="zen-notes-list-content${checked ? " is-done" : ""}">${this._inline(task[3]) || "<br/>"}</span>`;
         return;
       }
 
       const bullet = raw.match(/^(\s*)[-*+]\s+(.*)$/);
       if (bullet) {
         line.style.setProperty("--zen-notes-indent", Math.floor(bullet[1].length / INDENT.length));
-        line.innerHTML = `<span class="zen-notes-bullet">•</span><span class="zen-notes-list-content">${this._inline(bullet[2]) || "<br>"}</span>`;
+        line.innerHTML = `<span class="zen-notes-bullet">•</span><span class="zen-notes-list-content">${this._inline(bullet[2]) || "<br/>"}</span>`;
         return;
       }
 
       const ordered = raw.match(/^(\s*)(\d+)[.)]\s+(.*)$/);
       if (ordered) {
         line.style.setProperty("--zen-notes-indent", Math.floor(ordered[1].length / INDENT.length));
-        line.innerHTML = `<span class="zen-notes-order">${ordered[2]}.</span><span class="zen-notes-list-content">${this._inline(ordered[3]) || "<br>"}</span>`;
+        line.innerHTML = `<span class="zen-notes-order">${ordered[2]}.</span><span class="zen-notes-list-content">${this._inline(ordered[3]) || "<br/>"}</span>`;
         return;
       }
 
       const heading = raw.match(/^(#{1,6})\s+(.*)$/);
       if (heading) {
-        line.innerHTML = this._inline(heading[2]) || "<br>";
+        line.innerHTML = this._inline(heading[2]) || "<br/>";
         return;
       }
 
       const quote = raw.match(/^>\s?(.*)$/);
       if (quote) {
-        line.innerHTML = this._inline(quote[1]) || "<br>";
+        line.innerHTML = this._inline(quote[1]) || "<br/>";
         return;
       }
 
@@ -634,7 +634,7 @@
         return;
       }
 
-      line.innerHTML = this._inline(raw) || "<br>";
+      line.innerHTML = this._inline(raw) || "<br/>";
     }
 
     _classifyLine(line, raw, isCode) {
