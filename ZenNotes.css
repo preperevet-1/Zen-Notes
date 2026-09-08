@@ -1,21 +1,18 @@
-/* Zen Notes 0.4.1-alpha */
+/* Zen Notes 0.4.2-alpha */
 
-/* Native Firefox/Zen document glyph for the Create Note popup entry. */
+/* Document icon for the injected Create Note popup entry.
+   Data URI avoids depending on an icon path that can move between Zen/Firefox builds. */
 #zen-notes-create-menuitem {
-  list-style-image: url("chrome://global/skin/icons/page-portrait.svg") !important;
-  -moz-context-properties: fill, fill-opacity !important;
-  fill: currentColor !important;
-  fill-opacity: 1 !important;
+  list-style-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22%235b5b5f%22%20d%3D%22M7%202.5h7.1L19.5%207.9v11.85A2.25%202.25%200%200%201%2017.25%2022H6.75A2.25%202.25%200%200%201%204.5%2019.75v-15A2.25%202.25%200%200%201%206.75%202.5H7Zm6.35%201.8v4.35h4.35L13.35%204.3Z%22/%3E%3C/svg%3E") !important;
 }
 
 #zen-notes-create-menuitem > .menu-iconic-left > .menu-iconic-icon,
 #zen-notes-create-menuitem .menu-iconic-icon {
-  list-style-image: url("chrome://global/skin/icons/page-portrait.svg") !important;
-  -moz-context-properties: fill, fill-opacity !important;
-  fill: currentColor !important;
-  fill-opacity: 1 !important;
+  list-style-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22%235b5b5f%22%20d%3D%22M7%202.5h7.1L19.5%207.9v11.85A2.25%202.25%200%200%201%2017.25%2022H6.75A2.25%202.25%200%200%201%204.5%2019.75v-15A2.25%202.25%200%200%201%206.75%202.5H7Zm6.35%201.8v4.35h4.35L13.35%204.3Z%22/%3E%3C/svg%3E") !important;
   width: 18px !important;
   height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
   opacity: 0.86 !important;
 }
 
@@ -29,18 +26,12 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
   opacity: 0.9 !important;
 }
 
-.zen-notes-page-host {
-  position: relative !important;
-  isolation: isolate !important;
+/* 0.4.2: the note is no longer an overlay. It temporarily replaces the
+   tabbrowser content slot while a note tab is selected. */
+#zen-notes-page {
+  min-width: 0 !important;
+  min-height: 0 !important;
   overflow: hidden !important;
-}
-
-/* The editor is an HTML chrome surface layered over the selected note tab.
-   Hide the underlying about:home tabpanel while a note is active so Zen's
-   compositor cannot cover the editor with a blank white page. */
-#tabbrowser-tabbox[zen-notes-active="true"] > #tabbrowser-tabpanels {
-  visibility: hidden !important;
-  pointer-events: none !important;
 }
 
 #zen-notes-page[hidden] {
@@ -62,14 +53,10 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
   --zen-notes-page-fg: var(--zen-notes-boost-fg, light-dark(#202020, #ececec));
   --zen-notes-accent: var(--zen-notes-boost-accent, light-dark(#6f56d9, #9f8cff));
 
-  position: absolute !important;
-  z-index: 2147483000 !important;
-  inset: 0 !important;
+  position: relative !important;
   width: 100% !important;
   height: 100% !important;
-  display: block !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
+  -moz-box-flex: 1 !important;
   overflow: hidden !important;
   color-scheme: light dark;
   color: var(--zen-notes-page-fg);
@@ -80,7 +67,8 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
 
 .zen-notes-page-scroll {
   display: block !important;
-  position: relative !important;
+  position: absolute !important;
+  inset: 0 !important;
   box-sizing: border-box;
   width: 100%;
   height: 100%;
@@ -406,4 +394,18 @@ tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
     margin-bottom: 23px;
     font-size: calc(38px * var(--zen-notes-font-scale));
   }
+}
+
+/* Force an icon cell for the injected Create Note menuitem. Zen's popup
+   styles can otherwise collapse .menu-iconic-left for third-party items. */
+#zen-notes-create-menuitem > .menu-iconic-left {
+  visibility: visible !important;
+  display: flex !important;
+}
+
+#zen-notes-create-menuitem > .menu-iconic-left > .menu-iconic-icon {
+  min-width: 18px !important;
+  min-height: 18px !important;
+  width: 18px !important;
+  height: 18px !important;
 }

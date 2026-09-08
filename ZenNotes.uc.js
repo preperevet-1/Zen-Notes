@@ -2,9 +2,9 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.4.1-alpha";
+  const VERSION = "0.4.2-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
-  const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
+  const MENU_NOTE_ICON = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#5b5b5f" d="M7 2.5h7.1L19.5 7.9v11.85A2.25 2.25 0 0 1 17.25 22H6.75A2.25 2.25 0 0 1 4.5 19.75v-15A2.25 2.25 0 0 1 6.75 2.5H7Zm6.35 1.8v4.35h4.35L13.35 4.3Z"/></svg>`)}`;
   const TAB_URL_PREFIX = "about:home#zen-note=";
   const LEGACY_TAB_URL_PREFIXES = ["about:blank#zen-note="];
   const BOOST_DOMAIN = "zen-notes.local";
@@ -285,33 +285,31 @@
     }
 
     _getHost() {
-      // Mount once in the stable tab content container, not inside the currently
-      // selected browserStack. browserStack can be swapped during TabSelect,
-      // which caused 0.4.0 to leave the editor behind an empty about:home page.
-      return (
-        document.getElementById("tabbrowser-tabbox") ||
-        document.getElementById("appcontent") ||
-        gBrowser?.selectedBrowser?.parentElement ||
-        document.documentElement
-      );
+      // The note surface is a *sibling* of Firefox's tabbrowser-tabbox.
+      // We intentionally do not overlay the selected browser anymore: Zen can
+      // reparent/repaint browser stacks and cover chrome overlays with New Tab.
+      // Replacing the content slot while a note is selected is much more stable.
+      const tabbox = document.getElementById("tabbrowser-tabbox");
+      return tabbox?.parentElement || document.getElementById("browser") || null;
     }
 
     _ensurePage() {
+      const tabbox = document.getElementById("tabbrowser-tabbox");
       const host = this._getHost();
-      if (!host) return false;
+      if (!host || !tabbox) return false;
       let page = document.getElementById("zen-notes-page");
       if (page) {
-        if (page.parentElement !== host) {
-          page.parentElement?.classList?.remove("zen-notes-page-host");
-          host.classList.add("zen-notes-page-host");
-          host.append(page);
-        }
+        if (page.parentElement !== host) host.insertBefore(page, tabbox.nextSibling);
         return true;
       }
 
-      host.classList.add("zen-notes-page-host");
-      page = this._html("div");
+      // XUL vbox participates in #browser's layout exactly like tabbrowser-tabbox.
+      // When a note is active we hide tabbrowser-tabbox and show this vbox in its
+      // place, so there is no about:newtab/about:home page left to cover the note.
+      page = document.createXULElement("vbox");
       page.id = "zen-notes-page";
+      page.setAttribute("flex", "1");
+      page.setAttribute("class", "zen-notes-page-root");
       page.hidden = true;
 
       const scroll = this._html("div");
@@ -366,7 +364,7 @@
       canvas.append(topActions, title, editor);
       scroll.append(canvas);
       page.append(scroll);
-      host.append(page);
+      host.insertBefore(page, tabbox.nextSibling);
       return true;
     }
 
@@ -400,11 +398,12 @@
 
       note.title = data.title || note.title || "New Note";
       this._syncTabAppearance(id);
-      const host = this._getHost();
-      host?.setAttribute?.("zen-notes-active", "true");
+      const tabbox = document.getElementById("tabbrowser-tabbox");
+      if (tabbox) {
+        tabbox.setAttribute("zen-notes-suspended", "true");
+        tabbox.style.setProperty("display", "none", "important");
+      }
       page.hidden = false;
-      page.style.removeProperty("display");
-      page.style.removeProperty("visibility");
       this._loadingPage = false;
       this._applyBoost();
 
@@ -424,8 +423,11 @@
       this._commitActiveLine();
       const page = document.getElementById("zen-notes-page");
       if (page) page.hidden = true;
-      const host = this._getHost();
-      host?.removeAttribute?.("zen-notes-active");
+      const tabbox = document.getElementById("tabbrowser-tabbox");
+      if (tabbox) {
+        tabbox.removeAttribute("zen-notes-suspended");
+        tabbox.style.removeProperty("display");
+      }
     }
 
     _makeLine(raw = "") {
@@ -1101,9 +1103,12 @@
       }
 
       const page = document.getElementById("zen-notes-page");
-      page?.parentElement?.removeAttribute?.("zen-notes-active");
-      page?.parentElement?.classList?.remove("zen-notes-page-host");
       page?.remove();
+      const tabbox = document.getElementById("tabbrowser-tabbox");
+      if (tabbox) {
+        tabbox.removeAttribute("zen-notes-suspended");
+        tabbox.style.removeProperty("display");
+      }
       document.getElementById("zen-notes-create-menuitem")?.remove();
       document.getElementById("zen-notes-boost-custom-css")?.remove();
       try { this._boostEditor?.close?.(); } catch {}
