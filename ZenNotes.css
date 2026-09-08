@@ -1,0 +1,384 @@
+/* Zen Notes 0.4.0-alpha.1 */
+
+#zen-notes-create-menuitem,
+#zen-notes-create-menuitem > .menu-iconic-left > .menu-iconic-icon,
+tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
+  -moz-context-properties: fill, fill-opacity, stroke, stroke-opacity !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+#zen-notes-create-menuitem > .menu-iconic-left > .menu-iconic-icon {
+  width: 18px !important;
+  height: 18px !important;
+  opacity: 0.86 !important;
+}
+
+/* The note favicon is intentionally filled in the regular Zen tab/sidebar. */
+tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
+  width: 16px !important;
+  height: 16px !important;
+  opacity: 0.9 !important;
+}
+
+.zen-notes-page-host {
+  position: relative !important;
+  isolation: isolate;
+}
+
+#zen-notes-page[hidden] {
+  display: none !important;
+}
+
+#zen-notes-page {
+  --zen-notes-font-family: var(
+    --zen-notes-boost-font-family,
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "Inter",
+    "Segoe UI",
+    sans-serif
+  );
+  --zen-notes-font-scale: var(--zen-notes-boost-font-scale, 1);
+  --zen-notes-page-bg: var(--zen-notes-boost-bg, light-dark(#fbfbfb, #1b1b1b));
+  --zen-notes-page-fg: var(--zen-notes-boost-fg, light-dark(#202020, #ececec));
+  --zen-notes-accent: var(--zen-notes-boost-accent, light-dark(#6f56d9, #9f8cff));
+
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  color-scheme: light dark;
+  color: var(--zen-notes-page-fg);
+  background: var(--zen-notes-page-bg);
+  font-family: var(--zen-notes-font-family);
+  text-transform: var(--zen-notes-boost-text-transform, none);
+}
+
+.zen-notes-page-scroll {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+
+.zen-notes-page-canvas {
+  box-sizing: border-box;
+  width: min(860px, calc(100% - 72px));
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 68px 0 140px;
+  filter: var(--zen-notes-boost-filter, none);
+}
+
+.zen-notes-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 28px;
+  margin: 0 0 6px;
+}
+
+#zen-notes-boost-button {
+  appearance: none;
+  border: 0;
+  border-radius: 9px;
+  padding: 5px 9px;
+  color: inherit;
+  background: transparent;
+  font: 500 12px/1 var(--zen-notes-font-family);
+  opacity: 0;
+  cursor: default;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+#zen-notes-page:hover #zen-notes-boost-button,
+#zen-notes-boost-button:focus-visible {
+  opacity: 0.48;
+}
+
+#zen-notes-boost-button:hover:not(:disabled) {
+  opacity: 0.8;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+#zen-notes-boost-button:disabled {
+  display: none;
+}
+
+#zen-notes-page-title {
+  box-sizing: border-box;
+  min-height: 1.18em;
+  margin: 0 0 28px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  color: inherit;
+  background: transparent;
+  font-family: var(--zen-notes-font-family);
+  font-size: calc(clamp(38px, 4vw, 52px) * var(--zen-notes-font-scale));
+  font-weight: 730;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  caret-color: currentColor;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#zen-notes-page-title:empty::before {
+  content: attr(data-placeholder);
+  pointer-events: none;
+  opacity: 0.28;
+}
+
+#zen-notes-editor {
+  min-height: 58vh;
+  padding: 0 0 80px;
+  outline: none;
+  color: inherit;
+  font-family: var(--zen-notes-font-family);
+  font-size: calc(17px * var(--zen-notes-font-scale));
+  line-height: 1.72;
+  caret-color: currentColor;
+}
+
+.zen-notes-line {
+  position: relative;
+  box-sizing: border-box;
+  min-height: 1.72em;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  color: inherit;
+  background: transparent;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  cursor: text;
+}
+
+.zen-notes-line:empty::before,
+.zen-notes-line:has(> br:only-child)::before {
+  content: "\00a0";
+}
+
+/* Active line = source Markdown, like Obsidian Live Preview's current block. */
+.zen-notes-line.is-editing {
+  opacity: 1;
+}
+
+.zen-notes-line.is-editing::selection,
+.zen-notes-line.is-editing *::selection {
+  background: color-mix(in srgb, var(--zen-notes-accent) 28%, transparent);
+}
+
+/* Headings stay visually headings even while their # source marker is visible. */
+.zen-notes-line.is-h1 {
+  padding-top: 0.58em;
+  padding-bottom: 0.18em;
+  font-size: 2em;
+  font-weight: 720;
+  line-height: 1.2;
+  letter-spacing: -0.028em;
+}
+
+.zen-notes-line.is-h2 {
+  padding-top: 0.54em;
+  padding-bottom: 0.15em;
+  font-size: 1.56em;
+  font-weight: 700;
+  line-height: 1.26;
+  letter-spacing: -0.022em;
+}
+
+.zen-notes-line.is-h3 {
+  padding-top: 0.48em;
+  padding-bottom: 0.12em;
+  font-size: 1.25em;
+  font-weight: 680;
+  line-height: 1.34;
+}
+
+.zen-notes-line.is-h4 {
+  padding-top: 0.4em;
+  font-size: 1.09em;
+  font-weight: 660;
+}
+
+.zen-notes-line.is-h5 {
+  padding-top: 0.34em;
+  font-size: 1em;
+  font-weight: 650;
+}
+
+.zen-notes-line.is-h6 {
+  padding-top: 0.3em;
+  font-size: 0.94em;
+  font-weight: 650;
+  opacity: 0.82;
+}
+
+/* In Live Preview mode the Markdown prefix is replaced by a stable visual marker.
+   No UL/OL DOM is generated, so Firefox contenteditable cannot make bullets fall
+   down one-by-one or lose '-' characters during autosave. */
+.zen-notes-line:is(.is-bullet, .is-ordered, .is-task):not(.is-editing) {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 0.62em;
+  padding-left: calc(var(--zen-notes-indent, 0) * 1.55em);
+}
+
+.zen-notes-line:is(.is-bullet, .is-ordered, .is-task).is-editing {
+  padding-left: calc(var(--zen-notes-indent, 0) * 1.55em);
+}
+
+.zen-notes-bullet {
+  min-width: 0.72em;
+  text-align: center;
+  font-size: 0.88em;
+  opacity: 0.88;
+}
+
+.zen-notes-order {
+  min-width: 1.45em;
+  text-align: right;
+  opacity: 0.68;
+  font-variant-numeric: tabular-nums;
+}
+
+.zen-notes-list-content {
+  min-width: 0;
+}
+
+.zen-notes-list-content.is-done {
+  text-decoration: line-through;
+  opacity: 0.56;
+}
+
+.zen-notes-task-checkbox {
+  width: 0.88em;
+  height: 0.88em;
+  margin-top: 0.37em;
+  border: 1.5px solid color-mix(in srgb, currentColor 52%, transparent);
+  border-radius: 3px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.zen-notes-task-checkbox[data-checked="true"] {
+  position: relative;
+  border-color: var(--zen-notes-accent);
+  background: var(--zen-notes-accent);
+}
+
+.zen-notes-task-checkbox[data-checked="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0.23em;
+  top: 0.06em;
+  width: 0.21em;
+  height: 0.44em;
+  border: solid white;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.zen-notes-line.is-quote:not(.is-editing) {
+  margin: 0.16em 0;
+  padding-left: 0.95em;
+  border-left: 3px solid color-mix(in srgb, var(--zen-notes-accent) 55%, currentColor 15%);
+  opacity: 0.82;
+}
+
+.zen-notes-line.is-quote.is-editing {
+  opacity: 0.86;
+}
+
+.zen-notes-line.is-code {
+  min-height: 1.55em;
+  padding: 0 13px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88em;
+  line-height: 1.55;
+}
+
+.zen-notes-line.is-code:first-of-type,
+.zen-notes-line.is-fence {
+  border-radius: 8px;
+}
+
+.zen-notes-line.is-fence {
+  margin-top: 0.35em;
+  padding-top: 6px;
+  padding-bottom: 4px;
+  color: color-mix(in srgb, currentColor 52%, transparent);
+}
+
+.zen-notes-md-marker {
+  opacity: 0.55;
+}
+
+.zen-notes-line.is-rule {
+  min-height: 1.72em;
+  display: flex;
+  align-items: center;
+}
+
+.zen-notes-rule {
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+#zen-notes-editor strong { font-weight: 720; }
+#zen-notes-editor em { font-style: italic; }
+#zen-notes-editor del { opacity: 0.62; }
+#zen-notes-editor mark {
+  color: inherit;
+  background: color-mix(in srgb, #ffd95a 42%, transparent);
+  border-radius: 0.17em;
+  padding: 0 0.07em;
+}
+
+#zen-notes-editor code {
+  padding: 0.11em 0.32em;
+  border-radius: 5px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88em;
+}
+
+.zen-notes-link,
+.zen-notes-wikilink {
+  color: var(--zen-notes-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 52%, transparent);
+  text-underline-offset: 0.14em;
+}
+
+.zen-notes-wikilink {
+  text-decoration-style: dotted;
+}
+
+.zen-notes-embed {
+  opacity: 0.68;
+  font-style: italic;
+}
+
+@media (max-width: 720px) {
+  .zen-notes-page-canvas {
+    width: calc(100% - 36px);
+    padding-top: 42px;
+  }
+
+  #zen-notes-page-title {
+    margin-bottom: 23px;
+    font-size: calc(38px * var(--zen-notes-font-scale));
+  }
+}
