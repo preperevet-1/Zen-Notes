@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.7.0-alpha";
+  const VERSION = "0.7.1-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -830,7 +830,7 @@
 
       if (this._autoCloseMarker(event, line)) return;
       const selected = this._bodySelection();
-      if (selected && selected.end > selected.start && this._editorMarkdown().slice(selected.start, selected.end).includes("\n") && ["Enter", "Backspace", "Delete"].includes(event.key)) {
+      if (selected && selected.end > selected.start && ["Enter", "Backspace", "Delete"].includes(event.key)) {
         event.preventDefault(); this._replaceBodySelection(event.key === "Enter" ? "\n" : "", selected); return;
       }
       const key = event.key;
@@ -1269,12 +1269,47 @@
       await this._enqueueWrite(async () => {
         await FileIO.writeUTF8(this._deletedPath(id), new Date().toISOString());
         await FileIO.remove(this._notePath(id), { ignoreAbsent: true });
+        if (Paths.tempDir) await FileIO.remove(Paths.join(Paths.tempDir, "zen-notes-share", `${id}.html`), { ignoreAbsent: true });
         await this._writeIndex();
       });
       for (const { win } of controllers) {
         for (const tab of Array.from(win.gBrowser.tabs)) {
           if (!tab.closing && this._idFromTab(tab) === id) win.gBrowser.removeTab(tab, { animate: false });
         }
+      }
+    }
+
+    _insertDivider(position) {
+      const body = this._editorMarkdown();
+      const left = body.slice(0, position.start), right = body.slice(position.end);
+      this._replaceBodySelection((left && !left.endsWith("\n") ? "\n" : "") + "---" + (!right.startsWith("\n") ? "\n" : ""), position);
+    }
+
+    async _populateNativeShare(popup, id) {
+      if (Services.appinfo.OS !== "Darwin" || !this._getNote(id)) return;
+      popup.replaceChildren(this._menuItem("Preparing note…", () => {}));
+      try {
+        if (id === this.currentNoteId) await this._saveCurrentNow();
+        const note = this._getNote(id);
+        if (!note) return;
+        const data = await this._readNote(note);
+        const dir = Paths.join(Paths.tempDir, "zen-notes-share");
+        await FileIO.makeDirectory(dir, { ignoreExisting: true });
+        const path = Paths.join(dir, `${id}.html`);
+        await FileIO.writeUTF8(path, this._exportHTML(data));
+        const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+        file.initWithPath(path);
+        const uri = Services.io.newFileURI(file).spec;
+        const service = Cc["@mozilla.org/widget/macsharingservice;1"].getService(Ci.nsIMacSharingService);
+        const providers = service.getSharingProviders(uri);
+        popup.replaceChildren();
+        for (const provider of providers) {
+          popup.append(this._menuItem(provider.menuItemTitle, () => service.shareUrl(provider.name, uri, data.title)));
+        }
+        if (!providers.length) popup.append(this._menuItem("No services available — use Export…", () => this._exportNote()));
+      } catch (error) {
+        console.error(LOG, "Native sharing failed", error);
+        popup.replaceChildren(this._menuItem("Export HTML instead…", () => this._exportNote()));
       }
     }
 
@@ -1288,13 +1323,25 @@
       return result === Ci.nsIFilePicker.returnOK || result === Ci.nsIFilePicker.returnReplace ? picker.file.path : null;
     }
 
-    async _exportNote(extension = "md") {
+    async _exportNote() {
       await this._saveCurrentNow();
       const note = this._getNote(this.currentNoteId);
       if (!note) return;
       const data = await this._readNote(note);
-      const path = await this._pickFile(Ci.nsIFilePicker.modeSave, "Export Note", extension);
-      if (!path) return;
+      const picker = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
+      picker.init(window.browsingContext, "Export Note", Ci.nsIFilePicker.modeSave);
+      picker.appendFilter("Markdown (.md)", "*.md");
+      picker.appendFilter("HTML (.html)", "*.html");
+      picker.defaultExtension = "";
+      picker.defaultString = (note.title || "Note").replace(/[\\/:*?"<>|]/g, "-");
+      const result = await new Promise(resolve => picker.open(resolve));
+      if (![Ci.nsIFilePicker.returnOK, Ci.nsIFilePicker.returnReplace].includes(result)) return;
+      let path = picker.file.path;
+      const extension = /\.html?$/i.test(path) ? "html" : /\.md$/i.test(path) ? "md" : picker.filterIndex === 1 ? "html" : "md";
+      if (!/\.(?:md|html?)$/i.test(path)) {
+        path += `.${extension}`;
+        if (await FileIO.exists(path) && !Services.prompt.confirm(window, "Replace file?", `Replace ${path}?`)) return;
+      }
       let text = `# ${data.title}\n\n${data.body}`;
       if (extension === "html") text = this._exportHTML(data);
       await FileIO.writeUTF8(path, text);
@@ -1344,25 +1391,36 @@
     _autoCloseMarker(event, line) {
       if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return false;
       const raw = this._lineText(line), { start, end } = this._selectionOffsets(line), key = event.key;
-      if (!['*', '_', '`', '~', '='].includes(key)) {
-        if (key === ' ' && start === end && start === 1 && raw === '**') {
-          event.preventDefault(); this._replaceLineRaw(line, '* ', 2); return true;
-        }
-        if (key === ' ' && start === end && /[*_`~=]/.test(raw[start] || '') && start > 1) {
-          const closing = raw.slice(start).match(/^(\*\*|__|~~|==|[*_`])/)[0];
-          event.preventDefault(); this._replaceLineRaw(line, raw.slice(0, start + closing.length) + ' ' + raw.slice(start + closing.length), start + closing.length + 1); return true;
-        }
-        return false;
+      const pair = line._autoPair;
+      // Track only an automatically inserted suffix, never skip a user's literal marker.
+      const closeAt = pair && raw.startsWith(pair.prefix) && raw.endsWith(pair.suffix) ? raw.length - pair.suffix.length : -1;
+      if (pair && closeAt < 0) line._autoPair = null;
+      if (key === 'Backspace' && start === end && pair && start === pair.openEnd && closeAt === start) {
+        event.preventDefault(); this._replaceLineRaw(line, raw.slice(0, start - pair.marker.length) + raw.slice(start + pair.marker.length), start - pair.marker.length); line._autoPair = null; return true;
       }
-      event.preventDefault();
-      if (start === end && raw[start] === key) {
-        if (['*', '_', '~', '='].includes(key) && raw === key + key && start === 1) {
+      if (key === ' ' && pair?.marker === '*' && start === pair.openEnd && closeAt === start && /^\s*\*$/.test(raw.slice(0, start))) {
+        event.preventDefault(); this._replaceLineRaw(line, raw.slice(0, start) + ' ' + raw.slice(start + 1), start + 1); line._autoPair = null; return true;
+      }
+      if (!['*', '_', '`', '~', '='].includes(key)) return false;
+      if (start === end && pair && closeAt === start && pair.marker[0] === key) {
+        event.preventDefault();
+        if (pair.marker.length === 1 && pair.openEnd === start && key !== '`') {
           this._replaceLineRaw(line, raw.slice(0, start) + key + key + raw.slice(start), start + 1);
-        } else this._setCaret(line, start + 1);
-      } else if (start !== end || start === 0 || /[\s([{]/.test(raw[start - 1])) {
+          line._autoPair = { marker: key + key, openEnd: start + 1, prefix: raw.slice(0, start) + key, suffix: key + raw.slice(start) };
+        } else {
+          this._setCaret(line, start + 1);
+          if (pair.marker.length === 1) line._autoPair = null;
+          else line._autoPair = { ...pair, marker: pair.marker.slice(1), suffix: pair.suffix.slice(1), openEnd: -1 };
+        }
+        return true;
+      }
+      if (start !== end || (start === 0 || /[\s([{]/.test(raw[start - 1])) && (!raw[start] || /[\s)\]}.,!?]/.test(raw[start]))) {
+        event.preventDefault();
         this._replaceLineRaw(line, raw.slice(0, start) + key + raw.slice(start, end) + key + raw.slice(end), start + 1);
-      } else this._insertAtSelection(line, key);
-      return true;
+        line._autoPair = { marker: key, openEnd: start + 1, prefix: raw.slice(0, start) + key, suffix: key + raw.slice(end) };
+        return true;
+      }
+      return false;
     }
 
     _refreshInline(line) {
@@ -1621,11 +1679,15 @@
       formatting.append(options); popup.append(document.createXULElement("menuseparator"), formatting);
       popup.append(this._menuItem("Add Divider", () => {
         const position = bodySelection || { start: this._editorMarkdown().length, end: this._editorMarkdown().length };
-        this._replaceBodySelection("\n\n---\n\n", position);
+        this._insertDivider(position);
       }));
       popup.append(document.createXULElement("menuseparator"));
-      popup.append(this._menuItem("Export Markdown…", () => this._exportNote("md")));
-      popup.append(this._menuItem("Export HTML…", () => this._exportNote("html")));
+      popup.append(this._menuItem("Export…", () => this._exportNote()));
+      const share = document.createXULElement("menu"); share.setAttribute("label", "Share…");
+      const sharePopup = document.createXULElement("menupopup");
+      sharePopup.addEventListener("popupshowing", () => this._populateNativeShare(sharePopup, this.currentNoteId));
+      share.append(sharePopup);
+      if (Services.appinfo.OS === "Darwin") popup.append(share);
       popup.append(this._menuItem("Import Markdown…", () => this._importNote()));
       popup.openPopupAtScreen(event.screenX, event.screenY, true);
     }
@@ -1722,6 +1784,11 @@
       const popup = event.target;
       if (!popup || typeof popup.querySelectorAll !== "function") return;
 
+      if (popup.parentElement?.classList?.contains("share-tab-url-item")) {
+        const id = this._idFromTab(globalThis.TabContextMenu?.contextTab);
+        if (id && this._getNote(id)) this._populateNativeShare(popup, id);
+        return;
+      }
       if (popup.id === "contentAreaContextMenu") {
         this._addSelectionMenu(popup);
         return;
