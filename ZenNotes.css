@@ -19,11 +19,25 @@
   opacity: 0.86 !important;
 }
 
-/* The note favicon is intentionally filled in the regular Zen tab/sidebar. */
-tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
+/* The note favicon is intentionally filled and lighter than tab text in the
+   Zen tab/sidebar (kept separate from the Create Note glyph above, which
+   stays dark/currentColor on purpose).
+   Zen/Firefox's own tab CSS sets .tab-icon-image's fill with a selector
+   that's MORE specific than a plain "tabbrowser-tab[attr] .tab-icon-image"
+   chain, even though both declarations use !important — and among competing
+   !important rules, specificity (not source order) decides the winner. That
+   silent loss is why this rendered dark/currentColor (the tab label's own
+   color) instead of #888891 despite this rule already being here. The
+   duplicated attribute selector below is a specificity bump (same match,
+   higher weight) to make sure ours wins regardless of Zen's internal rule. */
+tabbrowser-tab[zen-notes-tab="true"][zen-notes-tab="true"] .tab-icon-image,
+tabbrowser-tab[zen-notes-tab="true"][zen-notes-tab="true"] .tab-icon-image:is(:hover, [selected]) {
   -moz-context-properties: fill, fill-opacity, stroke, stroke-opacity !important;
-  fill: currentColor !important;
-  stroke: currentColor !important;
+  fill: #888891 !important;
+  fill-opacity: 1 !important;
+  stroke: #888891 !important;
+  stroke-opacity: 1 !important;
+  color: #888891 !important;
   width: 16px !important;
   height: 16px !important;
   opacity: 0.9 !important;
