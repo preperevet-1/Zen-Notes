@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.5.0-alpha";
+  const VERSION = "0.5.1-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -67,7 +67,7 @@
         await FileIO.makeDirectory(this.storageDir, { ignoreExisting: true });
         await this._loadIndex();
 
-        document.addEventListener("popupshowing", this._onPopupShowing, true);
+        document.addEventListener("popupshowing", this._onPopupShowing, false);
         gBrowser.tabContainer.addEventListener("TabSelect", this._onTabSelect);
         gBrowser.tabContainer.addEventListener("TabClose", this._onTabClose);
         // Zen's real "Create Boost" entry lives at #zen-site-data-boost inside
@@ -83,6 +83,7 @@
         this.titleObserver = new MutationObserver(records => {
           for (const { target: tab } of records) {
             const note = this._getNote(this._idFromTab(tab));
+            if (note && tab.getAttribute("image") !== this._filledNoteIcon()) tab.setAttribute("image", this._filledNoteIcon());
             if (note && tab.getAttribute("label") !== note.title) {
               tab.setAttribute("label", note.title);
               tab.label = note.title;
@@ -90,7 +91,7 @@
           }
         });
         this.titleObserver.observe(gBrowser.tabContainer, {
-          attributes: true, subtree: true, attributeFilter: ["label"],
+          attributes: true, subtree: true, attributeFilter: ["label", "image", "pending", "zen-empty-tab"],
         });
 
         if (ZenBoostsManager && globalThis.Services?.obs) {
@@ -544,7 +545,7 @@
     _onLinePointerDown(event, line) {
       if (event.button !== 0) return;
       const link = event.target?.closest?.(".zen-notes-link, .zen-notes-wikilink");
-      if (link && (event.metaKey || event.ctrlKey)) {
+      if (link) {
         event.preventDefault();
         event.stopPropagation();
         this._followLink(link).catch(error => console.error(LOG, error));
@@ -769,6 +770,12 @@
       text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => token(`<span class="zen-notes-link" data-href="${href.replace(/"/g, "&quot;")}">${label}</span>`));
       text = text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, alias) => token(`<span class="zen-notes-wikilink" data-target="${target.replace(/"/g, "&quot;")}">${alias || target}</span>`));
       text = text.replace(/&lt;(https?:\/\/[^\s]+?)&gt;/g, (_, href) => token(`<span class="zen-notes-link" data-href="${href}">${href}</span>`));
+      // Existing Markdown links and code are already stashed: only linkify plain URLs.
+      text = text.replace(/https?:\/\/[^\s<>\uE000\uE001]+/g, match => {
+        let href = match.replace(/[.,!?;:]+$/, "");
+        while (href.endsWith(")") && (href.match(/\)/g) || []).length > (href.match(/\(/g) || []).length) href = href.slice(0, -1);
+        return token(`<span class="zen-notes-link" data-href="${href}">${href}</span>`) + match.slice(href.length);
+      });
       text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
       text = text.replace(/__([^_]+)__/g, "<strong>$1</strong>");
       text = text.replace(/~~([^~]+)~~/g, "<del>$1</del>");
@@ -1079,13 +1086,20 @@
           }
           this._commitLine(line);
           this._renderAllLines();
-          this._focusLine(cursor, (cursor.dataset.raw || "").length - lastTail.length);
+          if (/https?:\/\//i.test(text)) target.blur();
+          else this._focusLine(cursor, (cursor.dataset.raw || "").length - lastTail.length);
           this._queueSave();
           return;
         }
       }
 
       document.execCommand("insertText", false, text);
+      if (target?.classList?.contains("zen-notes-line") && /https?:\/\//i.test(text)) {
+        // Show the pasted URL as a clickable preview immediately.
+        this._commitLine(target);
+        target.blur();
+        this._queueSave();
+      }
     }
 
     _boostDomain(id = this.currentNoteId) { return `${id}.zen-notes.local`; }
@@ -1219,7 +1233,7 @@
     _addSelectionMenu(popup) {
       popup.querySelector("#zen-notes-add-selection")?.remove();
       const context = window.gContextMenu;
-      const text = context?.contentData?.selectionInfo?.fullText || context?.textSelected || "";
+      const text = context?.selectionInfo?.fullText || context?.contentData?.selectionInfo?.fullText || context?.selectedText || "";
       if (typeof text !== "string" || !text.trim()) return;
       const menu = document.createXULElement("menu");
       menu.id = "zen-notes-add-selection";
@@ -1273,6 +1287,15 @@
 
     _onCreateButtonPointer() { this._expectingCreatePopupUntil = Date.now() + 1800; }
 
+    _placeCreateNote(popup, item) {
+      const folder = Array.from(popup.children).find(node => {
+        const key = `${node.id} ${node.getAttribute("data-l10n-id") || ""}`;
+        return /(?:new|create)[-_]?folder/i.test(key) || /^(?:new|create) folder$/i.test(node.getAttribute("label") || "");
+      });
+      if (folder) { if (folder.nextSibling !== item) popup.insertBefore(item, folder.nextSibling); }
+      else if (item.parentNode !== popup) popup.append(item);
+    }
+
     _onPopupShowing(event) {
       const popup = event.target;
       if (!popup || typeof popup.querySelectorAll !== "function") return;
@@ -1285,7 +1308,9 @@
         if (!popup.querySelector("[data-zen-notes-create]")) {
           const item = this._menuItem("Create Note", () => this.createNote());
           item.dataset.zenNotesCreate = "true";
-          popup.append(item);
+          this._placeCreateNote(popup, item);
+        } else {
+          this._placeCreateNote(popup, popup.querySelector("[data-zen-notes-create]"));
         }
         return;
       }
@@ -1315,12 +1340,7 @@
         item.style.setProperty("list-style-image", `url("${MENU_NOTE_ICON}")`, "important");
         item.addEventListener("command", () => this.createNote().catch((error) => console.error(LOG, error)));
 
-        const children = Array.from(popup.children || []);
-        const folder = children.find((node) => (node.getAttribute?.("label") || "").trim().toLowerCase() === "create folder");
-        const separator = children.find((node) => node.localName === "menuseparator");
-        if (folder?.nextSibling) popup.insertBefore(item, folder.nextSibling);
-        else if (separator) popup.insertBefore(item, separator);
-        else popup.insertBefore(item, popup.firstChild);
+        this._placeCreateNote(popup, item);
       } catch (error) {
         console.error(LOG, "Could not add Create Note", error);
       }
@@ -1378,7 +1398,7 @@
     destroy() {
       this._destroyed = true;
       window.clearTimeout(this.saveTimer);
-      document.removeEventListener("popupshowing", this._onPopupShowing, true);
+      document.removeEventListener("popupshowing", this._onPopupShowing, false);
       document.removeEventListener("command", this._onNativeBoostButton, true);
       gBrowser?.tabContainer?.removeEventListener("TabSelect", this._onTabSelect);
       gBrowser?.tabContainer?.removeEventListener("TabClose", this._onTabClose);

@@ -395,3 +395,8 @@
 .zen-notes-table-row > span { padding: 5px 10px; border: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
 .zen-notes-callout { display: block; padding: 8px 12px; border-radius: 6px; background: color-mix(in srgb, var(--zen-notes-accent) 12%, transparent); }
 .zen-notes-link, .zen-notes-wikilink { cursor: pointer; }
+
+/* Keep the note glyph even when Zen restores an unloaded pinned tab's favicon. */
+[zen-notes-tab="true"] .tab-icon-image {
+  content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23888891' d='M7 2.5h7.1L19.5 7.9v11.85A2.25 2.25 0 0 1 17.25 22H6.75A2.25 2.25 0 0 1 4.5 19.75v-15A2.25 2.25 0 0 1 6.75 2.5H7Zm6.35 1.8v4.35h4.35L13.35 4.3Z'/%3E%3C/svg%3E") !important;
+}
