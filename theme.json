@@ -1,8 +1,8 @@
 {
   "id": "zen-notes",
   "name": "Zen Notes",
-  "description": "Local Markdown notes as normal Zen tabs with Obsidian-style Live Preview and Zen Boost styling.",
-  "version": "0.4.0-alpha.1",
+  "description": "Local Markdown notes as normal Zen tabs with reliable note-tab opening, Live Preview, and delete-on-close behavior.",
+  "version": "0.4.1-alpha",
   "author": "Zen Notes Project",
   "homepage": "https://github.com/preperevet-1/Zen-Notes",
   "createdAt": "2026-09-08",
@@ -13,7 +13,7 @@
   "scripts": {
     "ZenNotes.uc.js": {
       "name": "Zen Notes Core",
-      "description": "Persistent local Markdown notes, line-stable Live Preview editor, filled note tabs, and Zen Boost bridge.",
+      "description": "Persistent local Markdown notes with reliable tab identity, Live Preview, delete-on-close, filled note tabs, and Zen Boost bridge.",
       "include": [
         "chrome://browser/content/browser.xhtml"
       ]

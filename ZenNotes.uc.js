@@ -2,9 +2,9 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.4.0-alpha.1";
-  const TAB_URL_PREFIX = "about:home#zen-note=";
-  const LEGACY_TAB_URL_PREFIXES = ["about:blank#zen-note="];
+  const VERSION = "0.4.1-alpha";
+  const TAB_URL = "about:blank";
+  const LEGACY_TAB_URL_PREFIXES = ["about:home#zen-note=", "about:blank#zen-note="];
   const BOOST_DOMAIN = "zen-notes.local";
   const BOOST_URI = "https://zen-notes.local/";
   const INDENT = "    ";
@@ -50,11 +50,17 @@
       this._expectingCreatePopupUntil = 0;
       this._activeLine = null;
       this._boostEditor = null;
+      this._closingWindow = false;
+      this._applicationShuttingDown = false;
+      this._deletedNoteIds = new Set();
 
       this._onPopupShowing = this._onPopupShowing.bind(this);
       this._onCreateButtonPointer = this._onCreateButtonPointer.bind(this);
       this._onTabSelect = this._onTabSelect.bind(this);
       this._onTabClose = this._onTabClose.bind(this);
+      this._onTabAttrModified = this._onTabAttrModified.bind(this);
+      this._onWindowClosing = this._onWindowClosing.bind(this);
+      this._onAppQuit = this._onAppQuit.bind(this);
       this._onMutation = this._onMutation.bind(this);
       this._onBoostUpdate = this._onBoostUpdate.bind(this);
     }
@@ -67,6 +73,9 @@
         document.addEventListener("popupshowing", this._onPopupShowing, true);
         gBrowser.tabContainer.addEventListener("TabSelect", this._onTabSelect);
         gBrowser.tabContainer.addEventListener("TabClose", this._onTabClose);
+        gBrowser.tabContainer.addEventListener("TabAttrModified", this._onTabAttrModified);
+        window.addEventListener("SSWindowClosing", this._onWindowClosing, true);
+        if (globalThis.Services?.obs) Services.obs.addObserver(this._onAppQuit, "quit-application-granted");
 
         this.observer = new MutationObserver(this._onMutation);
         this.observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -115,7 +124,7 @@
     }
 
     _notePath(id) { return Paths.join(this.storageDir, `${id}.md`); }
-    _noteURL(id) { return `${TAB_URL_PREFIX}${encodeURIComponent(id)}`; }
+    _noteURL() { return TAB_URL; }
     _getNote(id) { return this.notes.find((note) => note.id === id) || null; }
 
     _idFromTab(tab) {
@@ -127,7 +136,7 @@
       } catch {}
 
       const spec = tab?.linkedBrowser?.currentURI?.spec || "";
-      const prefix = [TAB_URL_PREFIX, ...LEGACY_TAB_URL_PREFIXES].find((p) => spec.startsWith(p));
+      const prefix = LEGACY_TAB_URL_PREFIXES.find((p) => spec.startsWith(p));
       if (!prefix) return null;
       try { return decodeURIComponent(spec.slice(prefix.length)); } catch { return null; }
     }
@@ -141,6 +150,7 @@
 
       const tab = this._openNoteTab(note, { select: true });
       this.noteTabs.set(note.id, tab);
+      await this._waitForSelectedTab(tab);
       await this._showNote(note.id, { focusTitle: true });
     }
 
@@ -172,9 +182,10 @@
     async _saveCurrentNow() {
       window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
-      if (!this.currentNoteId) return;
+      if (!this.currentNoteId || this._deletedNoteIds.has(this.currentNoteId)) return;
 
-      const note = this._getNote(this.currentNoteId);
+      const noteId = this.currentNoteId;
+      const note = this._getNote(noteId);
       const page = document.getElementById("zen-notes-page");
       const title = document.getElementById("zen-notes-page-title");
       const editor = document.getElementById("zen-notes-editor");
@@ -186,7 +197,9 @@
       note.title = noteTitle;
       note.updatedAt = new Date().toISOString();
 
+      if (this._deletedNoteIds.has(noteId) || !this._getNote(noteId)) return;
       await FileIO.writeUTF8(this._notePath(note.id), `# ${noteTitle}\n\n${body}`);
+      if (this._deletedNoteIds.has(noteId) || !this._getNote(noteId)) return;
       await this._writeIndex();
       this._syncTabAppearance(note.id);
     }
@@ -215,19 +228,53 @@
     _openNoteTab(note, { select = false, background = false } = {}) {
       let tab;
       const url = this._noteURL(note.id);
+
+      // Always create the tab in the background first. Zen can dispatch TabSelect
+      // before addTab() returns; if we opened it directly in the foreground the
+      // note marker was not attached yet and Zen Notes treated it as a normal New Tab.
       try {
         const principal = Services?.scriptSecurityManager?.getSystemPrincipal?.();
         tab = gBrowser.addTab(url, {
           skipAnimation: true,
-          inBackground: background || !select,
+          inBackground: true,
           triggeringPrincipal: principal,
         });
       } catch {
-        tab = gBrowser.addTab(url, { skipAnimation: true, inBackground: background || !select });
+        tab = gBrowser.addTab(url, { skipAnimation: true, inBackground: true });
       }
+
       this._markTab(tab, note);
-      if (select) gBrowser.selectedTab = tab;
+      this.noteTabs.set(note.id, tab);
+
+      // Firefox/Zen may asynchronously replace the label with "New Tab" after
+      // the blank document finishes loading. Re-assert the note metadata.
+      queueMicrotask(() => this._markTab(tab, note));
+      window.setTimeout(() => this._markTab(tab, note), 80);
+      window.setTimeout(() => this._markTab(tab, note), 350);
+
+      if (select && !background) gBrowser.selectedTab = tab;
       return tab;
+    }
+
+    _waitForSelectedTab(tab) {
+      if (gBrowser.selectedTab === tab && gBrowser.selectedBrowser === tab.linkedBrowser) {
+        return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      }
+      return new Promise((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          gBrowser.tabContainer.removeEventListener("TabSelect", onSelect);
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        };
+        const onSelect = () => {
+          if (gBrowser.selectedTab === tab) finish();
+        };
+        gBrowser.tabContainer.addEventListener("TabSelect", onSelect);
+        if (gBrowser.selectedTab !== tab) gBrowser.selectedTab = tab;
+        window.setTimeout(finish, 250);
+      });
     }
 
     _recoverExistingNoteTabs() {
@@ -255,15 +302,68 @@
 
     async _onTabSelect() { await this._syncSelectedTab(); }
 
-    async _onTabClose(event) {
-      const id = this._idFromTab(event.target);
-      if (!id) return;
-      if (id === this.currentNoteId) {
-        await this._saveCurrentNow();
+    _onTabAttrModified(event) {
+      const tab = event.target;
+      const id = this._idFromTab(tab);
+      const note = id ? this._getNote(id) : null;
+      if (!note || tab.closing) return;
+      if (tab.label !== (note.title || "New Note") || tab.getAttribute("zen-notes-tab") !== "true") {
+        queueMicrotask(() => this._markTab(tab, note));
+      }
+    }
+
+    _onWindowClosing() {
+      this._closingWindow = true;
+    }
+
+    _onAppQuit() {
+      this._applicationShuttingDown = true;
+    }
+
+    async _deleteNote(id) {
+      const note = this._getNote(id);
+      if (!note || this._deletedNoteIds.has(id)) return;
+
+      this._deletedNoteIds.add(id);
+      if (this.currentNoteId === id) {
+        window.clearTimeout(this.saveTimer);
+        this.saveTimer = null;
         this.currentNoteId = null;
         this._hidePage();
       }
+
       this.noteTabs.delete(id);
+      this.notes = this.notes.filter((item) => item.id !== id);
+
+      // Update the index first so the deleted note cannot be restored on restart.
+      await this._writeIndex();
+      await FileIO.remove(this._notePath(id), { ignoreAbsent: true });
+    }
+
+    async _onTabClose(event) {
+      const tab = event.target;
+      const id = this._idFromTab(tab);
+      if (!id) return;
+
+      // Firefox fires TabClose when a tab is adopted/moved to another window.
+      // That is a move, not a deletion request.
+      if (event.detail?.adoptedBy) {
+        this.noteTabs.delete(id);
+        return;
+      }
+
+      // Closing the whole Zen window/application is not the same as explicitly
+      // closing a note tab. Preserve notes across browser restarts.
+      if (this._closingWindow || this._applicationShuttingDown) {
+        this.noteTabs.delete(id);
+        return;
+      }
+
+      try {
+        await this._deleteNote(id);
+      } catch (error) {
+        console.error(LOG, `Could not delete note ${id}`, error);
+      }
     }
 
     async _syncSelectedTab() {
@@ -1064,7 +1164,13 @@
       document.removeEventListener("popupshowing", this._onPopupShowing, true);
       gBrowser?.tabContainer?.removeEventListener("TabSelect", this._onTabSelect);
       gBrowser?.tabContainer?.removeEventListener("TabClose", this._onTabClose);
+      gBrowser?.tabContainer?.removeEventListener("TabAttrModified", this._onTabAttrModified);
+      window.removeEventListener("SSWindowClosing", this._onWindowClosing, true);
       this.observer?.disconnect();
+
+      if (globalThis.Services?.obs) {
+        try { Services.obs.removeObserver(this._onAppQuit, "quit-application-granted"); } catch {}
+      }
 
       if (ZenBoostsManager && globalThis.Services?.obs) {
         try { Services.obs.removeObserver(this._onBoostUpdate, "zen-boosts-update"); } catch {}

@@ -1,6 +1,16 @@
-# Zen Notes — 0.4.0 alpha.1
+# Zen Notes — 0.4.1 alpha
 
 Experimental local Markdown notes for Zen Browser through Sine.
+
+## 0.4.1 fixes
+
+- Fixed the race where **Create Note** could open a normal Zen **New Tab** instead of the note UI. A note tab is now created in the background, marked as a Zen Note first, and only then selected.
+- The note tab title is re-applied if Zen/Firefox asynchronously replaces it with **New Tab**.
+- New note tabs use a plain `about:blank` backing document; note identity lives in the tab attribute + SessionStore instead of depending on the page URL.
+- Closing an individual note tab now permanently removes its `.md` file and its entry from `index.json`.
+- Closing/restarting Zen does **not** delete notes. Moving a tab to another window also does not delete it.
+
+> Important: there is no Trash/Undo in this alpha. Closing a note tab intentionally deletes that note from disk.
 
 ## What changed in 0.4
 
