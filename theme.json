@@ -1,10 +1,10 @@
 {
   "id": "zen-notes",
   "name": "Zen Notes",
-  "description": "Minimal local Markdown notes inside Zen Browser.",
-  "version": "0.1.0-alpha",
+  "description": "Notion-like local Markdown notes as real tabs inside Zen Browser.",
+  "version": "0.2.0-alpha",
   "author": "Zen Notes Project",
-  "homepage": "https://github.com/preperevet-1/zen-notes",
+  "homepage": "https://github.com/preperevet-1/Zen-Notes",
   "createdAt": "2026-09-08",
   "updatedAt": "2026-09-08",
   "style": {
@@ -13,7 +13,7 @@
   "scripts": {
     "ZenNotes.uc.js": {
       "name": "Zen Notes Core",
-      "description": "Adds Create Note to Zen's + menu and a minimal Markdown notes sidebar/editor.",
+      "description": "Creates local Markdown notes as normal Zen tabs with a page-style editor.",
       "include": [
         "chrome://browser/content/browser.xhtml"
       ]

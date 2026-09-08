@@ -1,180 +1,199 @@
-/* Zen Notes 0.1.0-alpha */
+/* Zen Notes 0.2.0-alpha */
 
 #zen-notes-create-menuitem {
   list-style-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6.75 3.75h7.9l2.6 2.6v13.9H6.75z' fill='none' stroke='context-fill' stroke-width='1.7' stroke-linejoin='round'/%3E%3Cpath d='M14.5 3.9v3h2.9M9.2 11h5.7M9.2 14.2h5.7' fill='none' stroke='context-fill' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E") !important;
 }
 
-#zen-notes-sidebar[hidden],
-#zen-notes-overlay[hidden] {
+/* Notes are now real Zen/Firefox tabs; no separate NOTES section is created. */
+tabbrowser-tab[zen-notes-tab="true"] .tab-icon-image {
+  opacity: 0.82;
+}
+
+.zen-notes-page-host {
+  position: relative !important;
+}
+
+#zen-notes-page[hidden] {
   display: none !important;
 }
 
-#zen-notes-sidebar {
+#zen-notes-page {
+  position: absolute;
+  z-index: 2147482000;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  color-scheme: light dark;
+  color: light-dark(#202020, #ececec);
+  background: light-dark(#fbfbfb, #1b1b1b);
+}
+
+.zen-notes-page-scroll {
   box-sizing: border-box;
-  flex: 0 0 auto;
   width: 100%;
-  padding: 2px 6px 6px;
+  height: 100%;
+  overflow: auto;
+  scrollbar-width: thin;
 }
 
-.zen-notes-sidebar-header {
+.zen-notes-page-canvas {
   box-sizing: border-box;
-  padding: 4px 8px 5px;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.48;
+  width: min(860px, calc(100% - 72px));
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 76px 0 120px;
 }
 
-#zen-notes-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.zen-notes-item {
-  appearance: none;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-  min-height: 32px;
-  margin: 0;
-  padding: 5px 8px;
+#zen-notes-page-title {
+  min-height: 1.18em;
+  margin: 0 0 30px;
+  padding: 0;
   border: 0;
-  border-radius: 8px;
+  outline: none;
   color: inherit;
   background: transparent;
-  font: inherit;
-  text-align: left;
-  cursor: default;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  font-size: clamp(38px, 4vw, 52px);
+  font-weight: 730;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  caret-color: currentColor;
 }
 
-.zen-notes-item:hover,
-.zen-notes-item[data-active="true"] {
-  background: var(--zen-colors-tertiary, var(--toolbarbutton-hover-background));
+#zen-notes-page-title:empty::before {
+  content: attr(data-placeholder);
+  pointer-events: none;
+  opacity: 0.28;
 }
 
-.zen-notes-item-icon {
-  display: grid;
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  place-items: center;
+#zen-notes-editor-content {
+  min-height: 55vh;
+  padding: 0 0 80px;
+  border: 0;
+  outline: none;
+  color: inherit;
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  font-size: 17px;
+  line-height: 1.72;
+  caret-color: currentColor;
+  overflow-wrap: anywhere;
+}
+
+#zen-notes-editor-content:empty::before {
+  content: attr(data-placeholder);
+  pointer-events: none;
+  opacity: 0.28;
+}
+
+#zen-notes-editor-content p,
+#zen-notes-editor-content h1,
+#zen-notes-editor-content h2,
+#zen-notes-editor-content h3,
+#zen-notes-editor-content blockquote,
+#zen-notes-editor-content ul,
+#zen-notes-editor-content ol,
+#zen-notes-editor-content pre {
+  margin-top: 0;
+}
+
+#zen-notes-editor-content p {
+  min-height: 1.72em;
+  margin-bottom: 0.22em;
+}
+
+#zen-notes-editor-content h1 {
+  margin-bottom: 0.42em;
+  padding-top: 0.7em;
+  font-size: 2em;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+#zen-notes-editor-content h2 {
+  margin-bottom: 0.42em;
+  padding-top: 0.66em;
+  font-size: 1.55em;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+#zen-notes-editor-content h3 {
+  margin-bottom: 0.4em;
+  padding-top: 0.58em;
+  font-size: 1.23em;
+  line-height: 1.3;
+}
+
+#zen-notes-editor-content ul,
+#zen-notes-editor-content ol {
+  margin-bottom: 0.4em;
+  padding-left: 1.5em;
+}
+
+#zen-notes-editor-content li {
+  margin: 0.14em 0;
+  padding-left: 0.15em;
+}
+
+#zen-notes-editor-content blockquote {
+  margin-bottom: 0.5em;
+  padding: 0.1em 0 0.1em 1em;
+  border-left: 3px solid color-mix(in srgb, currentColor 25%, transparent);
   opacity: 0.78;
 }
 
-.zen-notes-item-icon svg {
-  display: block;
-  width: 18px;
-  height: 18px;
+#zen-notes-editor-content code {
+  padding: 0.12em 0.35em;
+  border-radius: 5px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88em;
 }
 
-.zen-notes-item-label {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 12.5px;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#zen-notes-overlay {
-  position: fixed;
-  z-index: 2147483000;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 48px;
-  background: rgba(0, 0, 0, 0.22);
-}
-
-#zen-notes-editor {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  width: min(760px, calc(100vw - 96px));
-  height: min(680px, calc(100vh - 96px));
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
-  border-radius: 16px;
-  color: var(--toolbar-color, inherit);
-  background: var(--zen-main-browser-background, var(--toolbar-bgcolor));
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
-}
-
-.zen-notes-editor-header {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 58px;
-  padding: 10px 12px 8px 20px;
-  border-bottom: 1px solid color-mix(in srgb, currentColor 9%, transparent);
-}
-
-#zen-notes-title {
-  appearance: none;
-  flex: 1;
-  min-width: 0;
-  padding: 4px 0;
-  border: 0;
-  outline: 0;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  font-size: 20px;
-  font-weight: 650;
-}
-
-#zen-notes-close {
-  appearance: none;
-  display: grid;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 0;
-  border-radius: 9px;
-  place-items: center;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  font-size: 23px;
-  line-height: 1;
-  cursor: default;
-  opacity: 0.72;
-}
-
-#zen-notes-close:hover {
-  background: var(--toolbarbutton-hover-background);
-  opacity: 1;
-}
-
-#zen-notes-body {
-  appearance: none;
-  box-sizing: border-box;
-  flex: 1;
-  width: 100%;
-  min-height: 0;
-  resize: none;
-  padding: 22px 22px 28px;
-  border: 0;
-  outline: 0;
-  color: inherit;
-  background: transparent;
+#zen-notes-editor-content pre {
+  overflow: auto;
+  margin-bottom: 0.7em;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 14px;
-  line-height: 1.65;
-  tab-size: 2;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
-.zen-notes-editor-footer {
-  box-sizing: border-box;
-  padding: 8px 20px 10px;
-  border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent);
-  font-size: 11px;
-  opacity: 0.46;
+#zen-notes-editor-content pre code {
+  padding: 0;
+  background: transparent;
+  font: inherit;
+}
+
+#zen-notes-editor-content a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 42%, transparent);
+  text-underline-offset: 0.16em;
+}
+
+.zen-notes-markdown-hint {
+  position: absolute;
+  bottom: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  font-size: 11.5px;
+  line-height: 1.4;
+  opacity: 0.34;
+  user-select: none;
+}
+
+@media (max-width: 720px) {
+  .zen-notes-page-canvas {
+    width: calc(100% - 36px);
+    padding-top: 44px;
+  }
+
+  #zen-notes-page-title {
+    margin-bottom: 24px;
+    font-size: 38px;
+  }
 }

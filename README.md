@@ -1,26 +1,25 @@
-# Zen Notes — 0.1.0 alpha
+# Zen Notes
 
-A first experimental Sine mod for Zen Browser.
+Alpha 0.2 of a local notes mod for Zen Browser, installed through Sine.
 
-## What this alpha does
+## Alpha 0.2
 
-- Adds **Create Note** to Zen's `+` / Create New popup.
-- Creates a note immediately and opens a minimal Markdown editor.
-- Shows created notes directly in the Zen sidebar.
-- Autosaves notes locally.
-- Stores every note as a standalone `.md` file inside your Zen profile:
-  - `<Zen profile>/zen-notes/<note-id>.md`
-  - `<Zen profile>/zen-notes/index.json`
+- `Create Note` stays in Zen's `+` menu.
+- A note is created as a **normal Zen tab**, not in a separate Notes section.
+- Opening that tab shows a full-page, Notion-like editor in the main browser area.
+- The note title is the large editable `New Note` heading on the page.
+- Notes autosave locally as standalone `.md` files in the Zen profile's `zen-notes` folder.
+- Basic visual Markdown shortcuts:
+  - `# `, `## `, `### ` → headings
+  - `- ` / `* ` → bullet list
+  - `1. ` → numbered list
+  - `> ` → quote
+  - typing inline `**bold**`, `*italic*`, or `` `code` `` is converted when you continue with Space/Enter
+  - `Cmd+B` / `Cmd+I` (Ctrl on Windows/Linux)
+- Saved files remain normal Markdown and can be moved to another editor later.
 
-## Current limitations
+## Alpha limitations
 
-- No delete/rename context menu yet.
-- No Markdown preview yet — editor is plain Markdown text.
-- No "Add selection to note" context-menu action yet.
-- Sidebar placement is an alpha implementation and may need adjustment after testing against your exact Zen build.
+This is intentionally small. There is no notes hub, delete UI, context-menu capture, images, sync, or complex block system yet.
 
-## Sine
-
-This repository uses Sine's `theme.json` format and a privileged userChromeJS script.
-
-Before GitHub installation, replace `YOUR_USERNAME` in `theme.json` with your GitHub username/repository URL.
+Because there is no hub yet, saved note tabs are restored on startup so notes remain reachable.
