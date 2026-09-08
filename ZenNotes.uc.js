@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.2.0-alpha";
+  const VERSION = "0.2.1-alpha";
   const TAB_URL_PREFIX = "about:blank#zen-note=";
 
   if (window.gZenNotes?.destroy) {
@@ -15,6 +15,17 @@
 
   const FileIO = globalThis.IOUtils;
   const Paths = globalThis.PathUtils;
+
+  let SessionStoreAPI = globalThis.SessionStore || null;
+  if (!SessionStoreAPI && globalThis.ChromeUtils?.importESModule) {
+    try {
+      ({ SessionStore: SessionStoreAPI } = ChromeUtils.importESModule(
+        "resource:///modules/sessionstore/SessionStore.sys.mjs"
+      ));
+    } catch (error) {
+      console.warn(LOG, "SessionStore API unavailable; URL fallback will be used", error);
+    }
+  }
 
   if (!FileIO || !Paths) {
     throw new Error(`${LOG} IOUtils/PathUtils are unavailable in this chrome context`);
@@ -57,7 +68,6 @@
         });
 
         this._bindCreateButton();
-        this._ensurePage();
         this._recoverExistingNoteTabs();
         await this._restoreMissingNoteTabs();
         await this._syncSelectedTab();
@@ -112,6 +122,13 @@
     _idFromTab(tab) {
       const attr = tab?.getAttribute?.("zen-notes-id");
       if (attr) return attr;
+
+      try {
+        const stored = SessionStoreAPI?.getCustomTabValue?.(tab, "zen-notes-id");
+        if (stored) return stored;
+      } catch (error) {
+        console.warn(LOG, "Could not read note id from SessionStore", error);
+      }
 
       const spec = tab?.linkedBrowser?.currentURI?.spec || "";
       if (!spec.startsWith(TAB_URL_PREFIX)) return null;
@@ -209,6 +226,12 @@
       tab.label = note.title || "New Note";
       tab.setAttribute("image", this._noteIconDataURI());
       tab.setAttribute("zen-notes-tab", "true");
+
+      try {
+        SessionStoreAPI?.setCustomTabValue?.(tab, "zen-notes-id", note.id);
+      } catch (error) {
+        console.warn(LOG, "Could not persist note id in SessionStore", error);
+      }
     }
 
     _openNoteTab(note, { select = false, background = false } = {}) {
@@ -329,7 +352,14 @@
     }
 
     _getHost() {
+      // Put the note UI inside the selected tab's own browser stack.
+      // This keeps Zen chrome (vertical sidebar, top bar, compact UI) above it.
+      const selectedBrowser = gBrowser?.selectedBrowser;
+      const browserStack = selectedBrowser?.parentElement;
+      if (browserStack) return browserStack;
+
       return (
+        document.getElementById("tabbrowser-tabbox") ||
         document.getElementById("appcontent") ||
         document.getElementById("browser") ||
         document.documentElement
@@ -337,13 +367,22 @@
     }
 
     _ensurePage() {
-      if (document.getElementById("zen-notes-page")) return true;
       const host = this._getHost();
       if (!host) return false;
 
+      let page = document.getElementById("zen-notes-page");
+      if (page) {
+        if (page.parentElement !== host) {
+          page.parentElement?.classList?.remove("zen-notes-page-host");
+          host.classList?.add("zen-notes-page-host");
+          host.append(page);
+        }
+        return true;
+      }
+
       host.classList?.add("zen-notes-page-host");
 
-      const page = document.createElement("div");
+      page = document.createElement("div");
       page.id = "zen-notes-page";
       page.hidden = true;
 
@@ -367,11 +406,7 @@
       editor.spellcheck = true;
       editor.setAttribute("role", "textbox");
       editor.setAttribute("aria-multiline", "true");
-      editor.setAttribute("data-placeholder", "Start writing…");
-
-      const hint = document.createElement("div");
-      hint.className = "zen-notes-markdown-hint";
-      hint.textContent = "Markdown shortcuts: #  ##  ###  -  1.  >   ·   ⌘B / ⌘I   ·   autosaved locally";
+      editor.setAttribute("data-placeholder", "");
 
       title.addEventListener("input", () => {
         if (this._loadingPage) return;
@@ -392,16 +427,31 @@
 
       title.addEventListener("paste", (event) => this._pastePlainText(event));
       editor.addEventListener("paste", (event) => this._pastePlainText(event));
-      editor.addEventListener("input", () => {
-        if (!this._loadingPage) this._queueSave();
+      editor.addEventListener("beforeinput", (event) => this._onEditorBeforeInput(event));
+      editor.addEventListener("input", (event) => {
+        if (this._loadingPage) return;
+
+        // Inline Markdown is rendered immediately after its closing marker is typed.
+        if (["*", "`", ")"].includes(event.data)) {
+          this._renderInlineMarkdownInCurrentBlock();
+        }
+        this._queueSave();
       });
       editor.addEventListener("keydown", (event) => this._onEditorKeyDown(event));
 
-      canvas.append(title, editor, hint);
+      canvas.append(title, editor);
       scroll.append(canvas);
       page.append(scroll);
       host.append(page);
       return true;
+    }
+
+    _onEditorBeforeInput(event) {
+      if (event.inputType !== "insertText" || event.data !== " ") return;
+      if (this._applyBlockMarkdownShortcut()) {
+        event.preventDefault();
+        this._queueSave();
+      }
     }
 
     _pastePlainText(event) {
@@ -428,12 +478,12 @@
       }
 
       if (event.key === " " && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        // Fallback for builds where beforeinput is not dispatched in browser chrome.
         if (this._applyBlockMarkdownShortcut()) {
           event.preventDefault();
           this._queueSave();
           return;
         }
-        this._renderInlineMarkdownInCurrentBlock();
       }
 
       if (event.key === "Enter" && !event.shiftKey) {
@@ -467,7 +517,7 @@
     _applyBlockMarkdownShortcut() {
       const block = this._currentTopLevelBlock();
       if (!block) return false;
-      const marker = block.textContent;
+      const marker = (block.textContent || "").replace(/\u00a0/g, " ").trim();
 
       if (marker === "#") return !!this._replaceBlock(block, "h1", "");
       if (marker === "##") return !!this._replaceBlock(block, "h2", "");
@@ -504,8 +554,28 @@
       return list;
     }
 
+    _currentTextBlock() {
+      const editor = document.getElementById("zen-notes-editor-content");
+      const selection = window.getSelection();
+      if (!editor || !selection?.rangeCount) return null;
+
+      let node = selection.anchorNode;
+      if (!node) return null;
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+      if (!node || !editor.contains(node)) return null;
+
+      let candidate = node;
+      while (candidate && candidate !== editor) {
+        if (["P", "H1", "H2", "H3", "BLOCKQUOTE", "LI"].includes(candidate.tagName)) {
+          return candidate;
+        }
+        candidate = candidate.parentElement;
+      }
+      return null;
+    }
+
     _renderInlineMarkdownInCurrentBlock() {
-      const block = this._currentTopLevelBlock();
+      const block = this._currentTextBlock() || this._currentTopLevelBlock();
       if (!block || ["UL", "OL", "PRE"].includes(block.tagName)) return false;
       const raw = block.textContent;
       if (!/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/.test(raw)) return false;
@@ -772,7 +842,11 @@
     _onMutation() {
       if (this._destroyed) return;
       this._bindCreateButton();
-      if (!document.getElementById("zen-notes-page")) this._ensurePage();
+
+      const selectedId = this._idFromTab(gBrowser?.selectedTab);
+      if (selectedId && this._getNote(selectedId)) {
+        this._ensurePage();
+      }
     }
 
     destroy() {

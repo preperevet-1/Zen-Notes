@@ -2,7 +2,7 @@
   "id": "zen-notes",
   "name": "Zen Notes",
   "description": "Notion-like local Markdown notes as real tabs inside Zen Browser.",
-  "version": "0.2.0-alpha",
+  "version": "0.2.1-alpha",
   "author": "Zen Notes Project",
   "homepage": "https://github.com/preperevet-1/Zen-Notes",
   "createdAt": "2026-09-08",

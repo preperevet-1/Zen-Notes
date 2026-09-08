@@ -1,25 +1,26 @@
-# Zen Notes
+# Zen Notes — 0.2.1 alpha
 
-Alpha 0.2 of a local notes mod for Zen Browser, installed through Sine.
+Experimental Sine mod for Zen Browser.
 
-## Alpha 0.2
+## Fixes in 0.2.1
 
-- `Create Note` stays in Zen's `+` menu.
-- A note is created as a **normal Zen tab**, not in a separate Notes section.
-- Opening that tab shows a full-page, Notion-like editor in the main browser area.
-- The note title is the large editable `New Note` heading on the page.
-- Notes autosave locally as standalone `.md` files in the Zen profile's `zen-notes` folder.
-- Basic visual Markdown shortcuts:
-  - `# `, `## `, `### ` → headings
-  - `- ` / `* ` → bullet list
-  - `1. ` → numbered list
-  - `> ` → quote
-  - typing inline `**bold**`, `*italic*`, or `` `code` `` is converted when you continue with Space/Enter
-  - `Cmd+B` / `Cmd+I` (Ctrl on Windows/Linux)
-- Saved files remain normal Markdown and can be moved to another editor later.
+- The note page is mounted inside the selected tab's browser stack instead of over the whole Zen window, so the Zen sidebar/top UI stays usable.
+- Note tab IDs are additionally persisted through Firefox SessionStore, improving note-tab recovery after a browser restart.
+- Removed the Markdown hint/footer from the note page.
+- Improved live Markdown shortcuts with `beforeinput` handling and more reliable inline formatting.
 
-## Alpha limitations
+## Current Markdown shortcuts
 
-This is intentionally small. There is no notes hub, delete UI, context-menu capture, images, sync, or complex block system yet.
+- `# `, `## `, `### ` → headings
+- `- ` / `* ` → bullet list
+- `1. ` → numbered list
+- `> ` → quote
+- `**bold**`, `*italic*`, `` `code` `` → inline formatting
+- `Cmd/Ctrl+B`, `Cmd/Ctrl+I`
+- ````` + Enter`` → code block
 
-Because there is no hub yet, saved note tabs are restored on startup so notes remain reachable.
+Notes are stored locally as standalone Markdown files in:
+
+`<Zen profile>/zen-notes/`
+
+This is still an alpha build. No note hub/delete UI or "Add selection to note" context action yet.
