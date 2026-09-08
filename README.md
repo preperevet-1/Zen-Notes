@@ -1,23 +1,6 @@
-# Zen Notes — 0.4.2 alpha
+# Zen Notes — 0.4.1 alpha.1
 
 Experimental local Markdown notes for Zen Browser through Sine.
-
-## 0.4.2 fixes
-
-- Fixed **Create Note** bubbling into Zen's native create-menu command handler, which could open a regular **New Tab** after the note was created.
-- Moved the note editor overlay out of the selected tab's volatile `.browserStack` and onto the stable `tabbrowser-tabbox` / `appcontent` host.
-- Restored a `#zen-note=<id>` fragment on the blank backing URL as an additional note-identity fallback.
-- Re-assert the note page after Zen's asynchronous tab switch settles, so a late browser repaint cannot visually replace the editor with the blank backing tab.
-
-## 0.4.1 fixes
-
-- Fixed the race where **Create Note** could open a normal Zen **New Tab** instead of the note UI. A note tab is now created in the background, marked as a Zen Note first, and only then selected.
-- The note tab title is re-applied if Zen/Firefox asynchronously replaces it with **New Tab**.
-- New note tabs use a plain `about:blank` backing document; note identity lives in the tab attribute + SessionStore instead of depending on the page URL.
-- Closing an individual note tab now permanently removes its `.md` file and its entry from `index.json`.
-- Closing/restarting Zen does **not** delete notes. Moving a tab to another window also does not delete it.
-
-> Important: there is no Trash/Undo in this alpha. Closing a note tab intentionally deletes that note from disk.
 
 ## What changed in 0.4
 
@@ -98,3 +81,12 @@ Custom Boost CSS is scoped to `#zen-notes-page` so it cannot accidentally restyl
 - Boost Zap / element picker / inspector do not operate on the note overlay and are intentionally hidden.
 - No note delete/rename context menu yet.
 - No “Add selected website text to note” context menu yet.
+
+
+## 0.4.1 hotfix
+
+- Fixes the blank note page seen in Zen 1.20+/Firefox 150 by mounting the editor on the stable `tabbrowser-tabbox` instead of a transient `browserStack`.
+- Explicitly uses XHTML elements for the editor surface.
+- Hides the underlying `about:home` tabpanel only while a Zen Note is selected so it cannot cover the editor.
+- Uses Zen/Firefox's built-in `page-portrait.svg` for the **Create Note** popup icon.
+- Keeps the filled document glyph for the normal sidebar/tab icon.
