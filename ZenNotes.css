@@ -466,3 +466,18 @@
   box-shadow: none !important;
   border: 0 !important;
 }
+
+/* Compact source citation; the full URL and title remain in Markdown. */
+.zen-notes-source {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 24px; border-radius: 7px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  vertical-align: middle; cursor: pointer;
+}
+.zen-notes-source img { width: 16px; height: 16px; object-fit: contain; }
+#zen-notes-selection-picker { min-width: 180px !important; max-width: 320px !important; width: max-content !important; }
+#zen-notes-selection-picker menuitem { max-width: 320px; }
+/* Selected command text and monochrome glyphs follow the white selection label. */
+.urlbarView-row[dynamicType="zen-actions"][selected] .urlbarView-title,
+.urlbarView-row[dynamicType="zen-actions"][selected] .urlbarView-title strong { color: white !important; }
+.urlbarView-row[dynamicType="zen-actions"][selected] .urlbarView-favicon { filter: brightness(0) invert(1); }

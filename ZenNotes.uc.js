@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.11.0-alpha";
+  const VERSION = "0.12.0-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -85,11 +85,24 @@
       };
     }
 
+    _reserveNoteShortcuts() {
+      this._reservedKeys ||= new Map();
+      for (const key of document.querySelectorAll("key")) {
+        const letter = (key.getAttribute("key") || "").toLowerCase();
+        const modifiers = (key.getAttribute("modifiers") || "").split(/[\s,]+/);
+        if (!["n", "a"].includes(letter) || !modifiers.includes("accel") || !modifiers.includes("shift") || modifiers.includes("alt")) continue;
+        if (this._reservedKeys.has(key)) continue;
+        this._reservedKeys.set(key, key.getAttribute("disabled"));
+        key.setAttribute("disabled", "true");
+      }
+    }
+
     async init() {
       try {
         await FileIO.makeDirectory(this.storageDir, { ignoreExisting: true });
         await this._loadIndex();
 
+        this._reserveNoteShortcuts();
         document.addEventListener("keydown", this._onFindShortcut, true);
         document.addEventListener("popupshowing", this._onPopupShowing, false);
         gBrowser.tabContainer.addEventListener("TabSelect", this._onTabSelect);
@@ -125,6 +138,13 @@
 
         this._registerPaletteAction();
         this._bindCreateButton();
+        this._onSessionRestored = () => {
+          if (this._destroyed) return;
+          this._recoverExistingNoteTabs();
+          this._syncSelectedTab().catch(error => console.error(LOG, error));
+        };
+        document.addEventListener("SSTabRestored", this._onSessionRestored);
+        window.addEventListener("SSWindowStateReady", this._onSessionRestored);
         this._recoverExistingNoteTabs();
         // SessionStore restores tabs. An index entry alone must never reopen a note.
         await this._syncSelectedTab();
@@ -201,6 +221,7 @@
     _getNote(id) { return this.notes.find((note) => note.id === id) || null; }
 
     _idFromTab(tab) {
+      if (tab?.hasAttribute?.("zen-glance-tab")) return null;
       const attr = tab?.getAttribute?.("zen-notes-id");
       if (attr) return attr;
       try {
@@ -320,6 +341,11 @@
         if (attempt < 5) requestAnimationFrame(() => this._tintTabIcon(tab, attempt + 1));
         return;
       }
+      const paint = window.getComputedStyle(icon);
+      const fill = paint.fill && paint.fill !== "none" ? paint.fill : "#dbe4f4";
+      const stroke = paint.stroke && paint.stroke !== "none" ? paint.stroke : "#46536e";
+      const svg = decodeURIComponent(this._filledNoteIcon().split(",")[1]).replaceAll("context-fill", fill).replaceAll("context-stroke", stroke);
+      icon.style.setProperty("content", `url("data:image/svg+xml,${encodeURIComponent(svg)}")`, "important");
       for (const name of ["fill", "fill-opacity", "stroke", "stroke-opacity", "color", "opacity", "-moz-context-properties"]) icon.style.removeProperty(name);
     }
 
@@ -846,6 +872,12 @@
         return;
       }
 
+      const source = raw.match(/^Source: \[([^\]]*)\]\(<?(https?:\/\/[^>]+?)>?\)$/);
+      if (source) {
+        const url = source[2];
+        line.innerHTML = `<span class="zen-notes-link zen-notes-source" data-href="${this._escape(url)}" title="${this._escape(source[1] || url)}" aria-label="Source: ${this._escape(source[1] || url)}"><img src="page-icon:${this._escape(url)}" alt=""/></span>`;
+        return;
+      }
       line.innerHTML = this._inline(raw) || "<br/>";
     }
 
@@ -1984,10 +2016,44 @@ function run(argv) {
       return false;
     }
 
+    async _readSelectedFragment(browser) {
+      if (this.currentNoteId) {
+        const selection = window.getSelection();
+        if (selection?.rangeCount && !selection.isCollapsed) {
+          const rect = selection.getRangeAt(0).getBoundingClientRect();
+          return { text: selection.toString(), x: window.mozInnerScreenX + rect.left, y: window.mozInnerScreenY + rect.bottom };
+        }
+      }
+      const manager = browser.messageManager;
+      if (!manager) return null;
+      const topic = `ZenNotes:Selection:${Date.now()}:${Math.random()}`;
+      return new Promise(resolve => {
+        const finish = value => { window.clearTimeout(timer); manager.removeMessageListener(topic, receive); resolve(value); };
+        const receive = message => finish(message.data);
+        const timer = window.setTimeout(() => finish(null), 2000);
+        manager.addMessageListener(topic, receive);
+        const script = function(topic) {
+          function find(win) {
+            const selection = win.getSelection();
+            if (selection?.rangeCount && !selection.isCollapsed) {
+              const rect = selection.getRangeAt(0).getBoundingClientRect();
+              return { text: selection.toString(), x: win.mozInnerScreenX + rect.left, y: win.mozInnerScreenY + rect.bottom };
+            }
+            for (let i = 0; i < win.frames.length; i++) { try { const found = find(win.frames[i]); if (found) return found; } catch {} }
+            return null;
+          }
+          sendAsyncMessage(topic, find(content));
+        };
+        try { manager.loadFrameScript(`data:application/javascript,${encodeURIComponent(`(${script})(${JSON.stringify(topic)})`)}`, false); }
+        catch { finish(null); }
+      });
+    }
+
     async _addSelectionShortcut() {
       const browser = gBrowser.selectedBrowser;
       const source = { url: browser.currentURI.spec, title: browser.contentTitle };
-      let text = this.currentNoteId ? window.getSelection()?.toString() : "";
+      const fragment = await this._readSelectedFragment(browser);
+      let text = fragment?.text || "";
       if (!text) {
         const result = await browser.finder.getInitialSelection();
         text = typeof result === "string" ? result : result?.selectedText || "";
@@ -2000,7 +2066,11 @@ function run(argv) {
       popup.append(document.createXULElement("menuseparator"));
       popup.append(this._menuItem("Create Note…", async () => { const note = await this.createNote(); await this._appendSelection(note.id, text, "Text", source); }));
       document.getElementById("mainPopupSet").append(popup);
-      popup.openPopup(gBrowser.selectedBrowser, "overlap", 24, 24);
+      popup.setAttribute("sizetopopup", "none");
+      const bounds = browser.getBoundingClientRect();
+      const x = fragment?.x ?? window.mozInnerScreenX + bounds.left + bounds.width / 2;
+      const y = fragment?.y ?? window.mozInnerScreenY + bounds.top + bounds.height / 2;
+      popup.openPopupAtScreen(x, y + 4, true);
     }
 
     async _addSelectionMenu(popup) {
@@ -2073,8 +2143,7 @@ function run(argv) {
       const manager = window.gZenUIManager;
       if (!manager?.showToast) return;
       const message = "zen-notes-content-added";
-      const pending = manager.showToast(message, { timeout: 6000,
-        button: { id: "zen-notes-open-added", command: () => this._openLinkedNote(id) } });
+      const pending = manager.showToast(message, { timeout: 6000 });
       const toast = Array.from(document.getElementById("zen-toast-container")?.children || []).find(el => el._messageId === message);
       if (toast) {
         const label = toast.querySelector("label");
@@ -2082,8 +2151,8 @@ function run(argv) {
         label.textContent = `${kind} added to note`;
         label.onclick = () => this._openLinkedNote(id);
         label.style.cursor = "pointer";
-        const button = toast.querySelector("button");
-        button?.setAttribute("label", "Open note");
+        toast.querySelector("button")?.remove();
+        toast.removeAttribute("button");
       }
       await pending;
     }
@@ -2101,9 +2170,11 @@ function run(argv) {
       const href = link.dataset.href;
       if (!/^https?:\/\//i.test(href || "")) return;
       if (glance && window.gZenGlanceManager?.openGlance) {
+        // No content snapshot for chrome-editor links. In particular, never
+        // request a snapshot with missing clientX/clientY coordinates.
+        window.gZenGlanceManager.lastLinkClickData = { clientX: 0, clientY: 0, width: 0, height: 0 };
         await window.gZenGlanceManager.openGlance({ url: href,
-          triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
-          width: 1, height: 1, x: 0, y: 0 });
+          triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal() });
       } else window.openTrustedLinkIn(href, "tab");
     }
 
@@ -2237,6 +2308,7 @@ function run(argv) {
 
     _onMutation() {
       if (this._destroyed) return;
+      this._reserveNoteShortcuts();
       this._bindCreateButton();
       const id = this._idFromTab(gBrowser?.selectedTab);
       if (id && this._getNote(id)) this._ensurePage();
@@ -2244,6 +2316,10 @@ function run(argv) {
 
     destroy() {
       this._destroyed = true;
+      for (const [key, disabled] of this._reservedKeys || []) {
+        if (disabled === null) key.removeAttribute("disabled"); else key.setAttribute("disabled", disabled);
+      }
+      this._reservedKeys?.clear();
       this._clearFind();
       window.clearTimeout(this.saveTimer);
       document.removeEventListener("keydown", this._onFindShortcut, true);
@@ -2251,6 +2327,8 @@ function run(argv) {
       document.removeEventListener("command", this._onNativeBoostButton, true);
       gBrowser?.tabContainer?.removeEventListener("TabSelect", this._onTabSelect);
       document.removeEventListener("TabClose", this._onTabClose, true);
+      document.removeEventListener("SSTabRestored", this._onSessionRestored);
+      window.removeEventListener("SSWindowStateReady", this._onSessionRestored);
       this.observer?.disconnect();
       this.titleObserver?.disconnect();
       document.querySelectorAll("[data-zen-notes-menu]").forEach(el => el.remove());
