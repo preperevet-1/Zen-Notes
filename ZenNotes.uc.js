@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.12.0-alpha";
+  const VERSION = "0.13.0-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -141,14 +141,16 @@
         this._onSessionRestored = () => {
           if (this._destroyed) return;
           this._recoverExistingNoteTabs();
-          this._syncSelectedTab().catch(error => console.error(LOG, error));
+          this._syncSelectedTab().then(() => this._renderInactiveNotes()).then(() => this._repairNotePopups()).catch(error => console.error(LOG, error));
         };
         document.addEventListener("SSTabRestored", this._onSessionRestored);
+        this._popupRepairTimers = [1000, 3500].map(delay => window.setTimeout(() => this._repairNotePopups().catch(console.error), delay));
         window.addEventListener("SSWindowStateReady", this._onSessionRestored);
         this._recoverExistingNoteTabs();
         // SessionStore restores tabs. An index entry alone must never reopen a note.
         await this._syncSelectedTab();
         this._applyBoost();
+        await this._renderInactiveNotes();
 
         console.info(LOG, `${VERSION} loaded`);
       } catch (error) {
@@ -402,8 +404,8 @@
       const id = this._idFromTab(gBrowser.selectedTab);
       if (!id || !this._getNote(id)) {
         if (this.currentNoteId) await this._saveCurrentNow();
-        this.currentNoteId = null;
         this._hidePage();
+        this.currentNoteId = null;
         return;
       }
       if (this.currentNoteId === id && !document.getElementById("zen-notes-page")?.hidden) return;
@@ -411,16 +413,85 @@
       await this._showNote(id);
     }
 
-    _getHost() {
-      // Mount once in the stable tab content container, not inside the currently
-      // selected browserStack. browserStack can be swapped during TabSelect,
-      // which caused 0.4.0 to leave the editor behind an empty about:home page.
-      return (
-        document.getElementById("tabbrowser-tabbox") ||
-        document.getElementById("appcontent") ||
-        gBrowser?.selectedBrowser?.parentElement ||
-        document.documentElement
-      );
+    _getHost(tab = gBrowser.selectedTab) {
+      return tab?.linkedBrowser?.closest?.(".browserStack") || tab?.linkedBrowser?.parentElement || null;
+    }
+
+    _parkEditor() {
+      const page = document.getElementById("zen-notes-page");
+      if (!page || page.hidden || !page.parentElement) return;
+      this._commitActiveLine();
+      const host = page.parentElement;
+      host.querySelector(".zen-notes-page-preview")?.remove();
+      const copy = page.cloneNode(true);
+      copy.removeAttribute("id"); copy.classList.add("zen-notes-page-preview");
+      for (const el of copy.querySelectorAll("[id]")) {
+        if (el.id === "zen-notes-page-title") el.classList.add("zen-notes-preview-title");
+        el.removeAttribute("id");
+      }
+      for (const el of copy.querySelectorAll("[contenteditable]")) el.removeAttribute("contenteditable");
+      copy.querySelector(".zen-notes-find")?.remove();
+      const id = this.currentNoteId;
+      copy.addEventListener("pointerdown", event => {
+        event.preventDefault(); this._openLinkedNote(id);
+        this._syncSelectedTab().catch(console.error);
+      });
+      host.append(copy);
+      copy.querySelector(".zen-notes-page-scroll").scrollTop = page.querySelector(".zen-notes-page-scroll").scrollTop;
+    }
+
+    async _renderInactiveNotes() {
+      for (const tab of Array.from(gBrowser.tabs)) {
+        const id = this._idFromTab(tab), note = this._getNote(id), host = this._getHost(tab);
+        if (!note || !host || tab === gBrowser.selectedTab || host.querySelector(".zen-notes-page-preview")) continue;
+        const data = await this._readNote(note);
+        if (this._destroyed || tab.closing || tab === gBrowser.selectedTab || host.querySelector(".zen-notes-page-preview")) continue;
+        const preview = this._html("div"); preview.className = "zen-notes-page-preview";
+        const scroll = this._html("div"); scroll.className = "zen-notes-page-scroll";
+        const canvas = this._html("div"); canvas.className = "zen-notes-page-canvas";
+        const title = this._html("h1"); title.className = "zen-notes-preview-title"; title.textContent = data.title;
+        canvas.append(title);
+        const previous = this.currentNoteId;
+        try {
+          this.currentNoteId = id;
+          for (const raw of data.body.split("\n")) {
+            const line = this._makeLine(raw); this._renderLine(line);
+            const copy = line.cloneNode(true); copy.removeAttribute("contenteditable"); canvas.append(copy);
+          }
+        } finally { this.currentNoteId = previous; }
+        scroll.append(canvas); preview.append(scroll);
+        preview.addEventListener("pointerdown", event => { event.preventDefault(); this._openLinkedNote(id); this._syncSelectedTab().catch(console.error); });
+        host.classList.add("zen-notes-page-host"); host.setAttribute("zen-notes-active", "true"); host.append(preview);
+      }
+    }
+
+    async _repairNotePopups() {
+      if (this._repairingPopups) return;
+      if (window.toolbar?.visible === false) {
+        const target = Array.from(Services.wm.getEnumerator("navigator:browser")).find(win => win !== window && !win.closed && win.toolbar?.visible !== false && win.gZenNotes);
+        if (target) await target.gZenNotes._repairNotePopups();
+        return;
+      }
+      this._repairingPopups = true;
+      try {
+        for (const win of Services.wm.getEnumerator("navigator:browser")) {
+          if (win === window || win.closed || win.toolbar?.visible !== false || !win.gBrowser) continue;
+          const tabs = Array.from(win.gBrowser.tabs);
+          if (!tabs.length || tabs.some(tab => !this._idFromTab(tab))) continue;
+          for (const tab of tabs) {
+            const id = this._idFromTab(tab);
+            if (await FileIO.exists(this._notePath(id))) {
+              gBrowser.adoptTab(tab, gBrowser.tabs.length, false);
+            } else {
+              // Only obsolete note tabs, never unrelated pages or existing files.
+              win.gZenNotes?._closingNotes.add(id);
+              win.gBrowser.removeTab(tab, { animate: false });
+            }
+          }
+          if (!win.closed && Array.from(win.gBrowser.tabs).every(tab => !this._idFromTab(tab) && ["about:blank", "about:home", "about:newtab"].includes(tab.linkedBrowser.currentURI.spec))) win.close();
+        }
+        this._recoverExistingNoteTabs();
+      } finally { this._repairingPopups = false; }
     }
 
     _ensurePage() {
@@ -429,7 +500,8 @@
       let page = document.getElementById("zen-notes-page");
       if (page) {
         if (page.parentElement !== host) {
-          page.parentElement?.classList?.remove("zen-notes-page-host");
+          this._parkEditor();
+          page.hidden = true;
           host.classList.add("zen-notes-page-host");
           host.append(page);
         }
@@ -535,6 +607,7 @@
     async _showNoteUnsafe(id, options = {}) {
       const note = this._getNote(id);
       if (!note) return;
+      this._parkEditor();
       if (!this._ensurePage()) {
         console.error(LOG, "Could not mount note page host");
         return;
@@ -552,7 +625,8 @@
       title.textContent = data.title || "New Note";
       editor.replaceChildren();
 
-      const lines = data.body === "" ? [""] : data.body.split("\n");
+      const normalizedBody = data.body.replace(/\n+Source: \[([^\]]*)\]\(([^\n]+)\)/g, " [Source: $1]($2)");
+      const lines = normalizedBody === "" ? [""] : normalizedBody.split("\n");
       for (const raw of lines) editor.append(this._makeLine(raw));
       this._renderAllLines();
 
@@ -561,6 +635,7 @@
       const host = this._getHost();
       host?.setAttribute?.("zen-notes-active", "true");
       page.hidden = false;
+      host?.querySelector(".zen-notes-page-preview")?.remove();
       page.style.removeProperty("display");
       page.style.removeProperty("visibility");
       this._loadingPage = false;
@@ -581,12 +656,13 @@
     }
 
     _hidePage() {
+      this._parkEditor();
       this._clearFind();
       this._commitActiveLine();
       const page = document.getElementById("zen-notes-page");
       if (page) page.hidden = true;
-      const host = this._getHost();
-      host?.removeAttribute?.("zen-notes-active");
+      const host = page?.parentElement;
+      if (!host?.querySelector(".zen-notes-page-preview")) host?.removeAttribute?.("zen-notes-active");
     }
 
     // Short editor references keep selection/caret offsets small. The portable
@@ -814,6 +890,8 @@
         const compact = note?.compactVideos?.includes(preview.id);
         const title = this._videoTitles.get(preview.id) || note?.videoTitles?.[preview.id] || raw.trim().match(/^\[([^\]]+)\]/)?.[1] || "Video";
         line.innerHTML = `<span class="zen-notes-link zen-notes-video-card" data-href="${this._escape(preview.href)}" data-video-id="${preview.id}">${compact ? "" : `<img src="https://i.ytimg.com/vi/${preview.id}/hqdefault.jpg" alt="Video preview" referrerpolicy="no-referrer"/>`}<span>▶ ${this._escape(title)}</span></span>`;
+        const citation = raw.match(/\s+(\[Source: [^\]]*\]\([^\n]*\))$/)?.[1];
+        if (citation) line.innerHTML += this._inline(citation);
         this._loadVideoTitle(preview, line);
         return;
       }
@@ -901,7 +979,7 @@
       else if (/^\s*(---|\*\*\*|___)\s*$/.test(raw)) line.classList.add("is-rule");
     }
 
-    _inline(raw) {
+    _inline(raw, exporting = false) {
       let text = this._escape(this._expandImages(raw));
       const stash = [];
       const token = (html) => `\uE000${stash.push(html) - 1}\uE001`;
@@ -911,6 +989,11 @@
       text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, source) => {
         const url = source.replace(/^&lt;|&gt;$/g, "");
         return /^(?:https?:\/\/|data:image\/(?:png|jpeg|gif|webp);base64,)/i.test(url) ? token(`<img class="zen-notes-image" src="${url}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer"/>`) : token(`<span class="zen-notes-embed">${alt || "Image: unsupported URL"}</span>`);
+      });
+      text = text.replace(/\[Source: ([^\]]*)\]\((?:&lt;)?(https?:[^)]+)\)/g, (_, label, target) => {
+        const href = target.replace(/^&lt;|&gt;$/g, "");
+        if (exporting) return token(`<a href="${href}">Source: ${label}</a>`);
+        return token(`<span class="zen-notes-link zen-notes-source" data-href="${href}" title="${label}" aria-label="Source: ${label}"><img src="page-icon:${href}" alt=""/></span>`);
       });
       text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => token(`<span class="zen-notes-link" data-href="${href.replace(/^&lt;|&gt;$/g, "").replace(/"/g, "&quot;")}">${label}</span>`));
       text = text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, alias) => token(`<span class="zen-notes-wikilink" data-target="${target.replace(/"/g, "&quot;")}">${alias || target}</span>`));
@@ -1498,6 +1581,7 @@ function run(argv) {
     }
 
     _youtubePreview(raw) {
+      raw = raw.replace(/\s+\[Source: [^\]]*\]\([^\n]*\)$/, "");
       const link = raw.trim().match(/^\[[^\]]*\]\((https?:\/\/[^)]+)\)$/);
       const href = link ? link[1] : raw.trim();
       let url;
@@ -1543,7 +1627,7 @@ function run(argv) {
     _plainNoteText(body) {
       return body.split('\n').map(raw => {
         let text = raw.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) => /^data:/i.test(url) ? `[${alt || 'Image'}]` : `${alt || 'Image'}: ${url}`);
-        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 — $2');
+      text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 — $2');
         text = text.replace(/<\/?u>/g, '').replace(/\|\|/g, '');
         return this._visibleTextForRaw(text);
       }).join('\n');
@@ -1632,7 +1716,7 @@ function run(argv) {
     }
 
     _exportHTML(data) {
-      const inline = text => this._inline(text).replace(/<span class="zen-notes-link" data-href="(https?:[^\"]*)">(.*?)<\/span>/g, '<a href="$1">$2</a>');
+      const inline = text => this._inline(text, true).replace(/<span class="zen-notes-link" data-href="(https?:[^\"]*)">(.*?)<\/span>/g, '<a href="$1">$2</a>');
       const output = [];
       const lines = data.body.split("\n");
       let fence = null;
@@ -2115,7 +2199,7 @@ function run(argv) {
     async _appendSelection(id, text, kind = "Text", source = null) {
       if (source?.url && /^https?:\/\//i.test(source.url)) {
         const label = (source.title || source.url).replace(/[\[\]\r\n]/g, " ");
-        text += `\n\nSource: [${label}](<${source.url.replace(/>/g, "%3E")}>)`;
+        text = text.trimEnd() + ` [Source: ${label}](<${source.url.replace(/>/g, "%3E")}>)`;
       }
       let added = false;
       if (this.currentNoteId === id) await this._saveCurrentNow();
@@ -2320,6 +2404,8 @@ function run(argv) {
         if (disabled === null) key.removeAttribute("disabled"); else key.setAttribute("disabled", disabled);
       }
       this._reservedKeys?.clear();
+      for (const timer of this._popupRepairTimers || []) window.clearTimeout(timer);
+      document.querySelectorAll(".zen-notes-page-preview").forEach(el => el.remove());
       this._clearFind();
       window.clearTimeout(this.saveTimer);
       document.removeEventListener("keydown", this._onFindShortcut, true);

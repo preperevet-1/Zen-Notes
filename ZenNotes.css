@@ -55,16 +55,16 @@
    parent on Zen builds where #tabbrowser-tabbox doesn't exist). Scoping this
    to the id alone silently no-ops on those builds and leaves the real
    about:home page visible instead of the note. */
-.zen-notes-page-host[zen-notes-active="true"] > :not(#zen-notes-page) {
+.zen-notes-page-host[zen-notes-active="true"] > :not(:is(#zen-notes-page, .zen-notes-page-preview)) {
   visibility: hidden !important;
   pointer-events: none !important;
 }
 
-#zen-notes-page[hidden] {
+:is(#zen-notes-page, .zen-notes-page-preview)[hidden] {
   display: none !important;
 }
 
-#zen-notes-page {
+:is(#zen-notes-page, .zen-notes-page-preview) {
   --zen-notes-font-family: var(
     --zen-notes-boost-font-family,
     -apple-system,
@@ -80,7 +80,7 @@
   --zen-notes-accent: var(--zen-notes-boost-accent, light-dark(#6f56d9, #9f8cff));
 
   position: absolute !important;
-  z-index: 2147483000 !important;
+  z-index: 2 !important;
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
@@ -117,7 +117,7 @@
   filter: var(--zen-notes-boost-filter, none);
 }
 
-#zen-notes-page-title {
+:is(#zen-notes-page-title, .zen-notes-preview-title) {
   box-sizing: border-box;
   min-height: 1.18em;
   margin: 0 0 28px;
@@ -136,7 +136,7 @@
   overflow-wrap: anywhere;
 }
 
-#zen-notes-page-title:empty::before {
+:is(#zen-notes-page-title, .zen-notes-preview-title):empty::before {
   content: attr(data-placeholder);
   pointer-events: none;
   opacity: 0.28;
@@ -385,7 +385,7 @@
     padding-top: 42px;
   }
 
-  #zen-notes-page-title {
+  :is(#zen-notes-page-title, .zen-notes-preview-title) {
     margin-bottom: 23px;
     font-size: calc(38px * var(--zen-notes-font-scale));
   }
@@ -407,7 +407,7 @@
   width: 19px !important; height: 19px !important;
   opacity: 1 !important; fill-opacity: 1 !important; stroke-opacity: 1 !important;
 }
-#zen-notes-page {
+:is(#zen-notes-page, .zen-notes-page-preview) {
   border-radius: var(--zen-native-inner-radius, 10px) !important;
   box-shadow: var(--zen-big-shadow, 0 3px 12px #0002) !important;
   overflow: hidden !important;
@@ -481,3 +481,6 @@
 .urlbarView-row[dynamicType="zen-actions"][selected] .urlbarView-title,
 .urlbarView-row[dynamicType="zen-actions"][selected] .urlbarView-title strong { color: white !important; }
 .urlbarView-row[dynamicType="zen-actions"][selected] .urlbarView-favicon { filter: brightness(0) invert(1); }
+
+.zen-notes-source { margin-inline-start: .3em; }
+.zen-notes-page-host { isolation: auto !important; }
