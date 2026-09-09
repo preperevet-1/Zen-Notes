@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.10.0-alpha";
+  const VERSION = "0.11.0-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -63,6 +63,15 @@
       this._onBoostUpdate = this._onBoostUpdate.bind(this);
       this._onNativeBoostButton = this._onNativeBoostButton.bind(this);
       this._onFindShortcut = event => {
+        if ((event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey && ["n", "a"].includes(event.key.toLowerCase())) {
+          event.preventDefault(); event.stopImmediatePropagation();
+          if (event.key.toLowerCase() === "n") this.createNote().catch(console.error);
+          else this._addSelectionShortcut().catch(console.error);
+          return;
+        }
+        if (this.currentNoteId && (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "a" && !event.target.closest?.("#urlbar, .zen-notes-find, #zen-notes-page-title")) {
+          event.preventDefault(); event.stopImmediatePropagation(); this._selectAll(); return;
+        }
         const input = globalThis.gURLBar?.inputField;
         if (event.key === "Enter" && !event.isComposing && !event.metaKey && !event.ctrlKey && !event.altKey && input && (event.target === input || event.composedPath?.().includes(input)) && /^(?:new|create) note$/i.test(input.value.trim())) {
           event.preventDefault(); event.stopImmediatePropagation();
@@ -449,6 +458,14 @@
       });
       page.addEventListener("drop", event => this._dropImages(event).catch(error => console.error(LOG, error)));
       page.addEventListener("keydown", event => this._pageKeys(event), true);
+      editor.addEventListener("keydown", event => {
+        if (event.target !== editor || event.metaKey || event.ctrlKey) return;
+        const selection = this._bodySelection();
+        if (selection && selection.start !== selection.end && ["Backspace", "Delete", "Enter"].includes(event.key)) {
+          event.preventDefault(); this._replaceBodySelection(event.key === "Enter" ? "\n\n" : "", selection);
+        }
+      });
+      editor.addEventListener("paste", event => { if (event.target === editor) this._pastePlainText(event); });
       page.addEventListener("beforeinput", event => {
         if (event.inputType === "historyUndo" || event.inputType === "historyRedo") {
           event.preventDefault(); this._undo(event.inputType === "historyRedo"); return;
@@ -601,6 +618,7 @@
     }
 
     _onLinePointerDown(event, line) {
+      if (event.button === 0) this._endWholeSelection();
       if (event.button !== 0) {
         // Cancel the focus default without cancelling the subsequent contextmenu.
         if (event.button === 2) event.preventDefault();
@@ -610,7 +628,7 @@
       if (link) {
         event.preventDefault();
         event.stopPropagation();
-        this._followLink(link).catch(error => console.error(LOG, error));
+        this._followLink(link, event.altKey).catch(error => console.error(LOG, error));
         return;
       }
       const spoiler = event.target?.closest?.(".zen-notes-spoiler");
@@ -862,7 +880,7 @@
         const url = source.replace(/^&lt;|&gt;$/g, "");
         return /^(?:https?:\/\/|data:image\/(?:png|jpeg|gif|webp);base64,)/i.test(url) ? token(`<img class="zen-notes-image" src="${url}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer"/>`) : token(`<span class="zen-notes-embed">${alt || "Image: unsupported URL"}</span>`);
       });
-      text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => token(`<span class="zen-notes-link" data-href="${href.replace(/"/g, "&quot;")}">${label}</span>`));
+      text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => token(`<span class="zen-notes-link" data-href="${href.replace(/^&lt;|&gt;$/g, "").replace(/"/g, "&quot;")}">${label}</span>`));
       text = text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, alias) => token(`<span class="zen-notes-wikilink" data-target="${target.replace(/"/g, "&quot;")}">${alias || target}</span>`));
       text = text.replace(/&lt;(https?:\/\/[^\s]+?)&gt;/g, (_, href) => token(`<span class="zen-notes-link" data-href="${href}">${href}</span>`));
       // Existing Markdown links and code are already stashed: only linkify plain URLs.
@@ -1703,19 +1721,33 @@ function run(argv) {
       if (next < 0 || next >= history.entries.length) return;
       history.index = next;
       this._restoringHistory = true;
+      const page = document.getElementById("zen-notes-page");
+      const scroll = page?.scrollTop || 0;
+      const position = this._bodySelection()?.start || 0;
       const value = history.entries[next];
       document.getElementById("zen-notes-page-title").textContent = value.title;
       this._setBody(value.body);
-      this._focusLine(document.getElementById("zen-notes-editor").firstElementChild, 0);
+      const before = value.body.slice(0, Math.min(position, value.body.length)).split("\n");
+      const editor = document.getElementById("zen-notes-editor");
+      this._focusLine(editor.children[before.length - 1] || editor.firstElementChild, before.at(-1).length);
+      if (page) page.scrollTop = scroll;
       this._restoringHistory = false;
       this._queueSave();
     }
 
     _setBody(body) {
+      this._endWholeSelection();
       this._activeLine = null;
       const editor = document.getElementById("zen-notes-editor");
       editor.replaceChildren(...body.split("\n").map(raw => this._makeLine(raw)));
       this._renderAllLines();
+    }
+
+    _endWholeSelection() {
+      const editor = document.getElementById("zen-notes-editor");
+      if (!editor?.hasAttribute?.("contenteditable")) return;
+      editor.removeAttribute("contenteditable");
+      for (const line of editor.children) this._setPlainEditable(line);
     }
 
     _selectAll() {
@@ -1726,15 +1758,18 @@ function run(argv) {
         line.textContent = line.dataset.raw || "";
         line.classList.add("is-editing");
       }
-      editor.firstElementChild?.focus();
+      this._activeLine = null;
+      for (const line of editor.children) line.removeAttribute("contenteditable");
+      this._setPlainEditable(editor);
+      editor.focus({ preventScroll: true });
       const range = document.createRange(); range.selectNodeContents(editor);
       const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
     }
 
     _bodySelection() {
       const editor = document.getElementById("zen-notes-editor");
-      const selection = window.getSelection();
-      if (!selection.rangeCount) return null;
+      const selection = window.getSelection?.();
+      if (!selection?.rangeCount) return null;
       const range = selection.getRangeAt(0);
       if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) return null;
       const lines = Array.from(editor.children);
@@ -1926,7 +1961,7 @@ function run(argv) {
       const noteLink = document.createXULElement("menu"); noteLink.setAttribute("label", "Link to Note");
       const noteChoices = document.createXULElement("menupopup");
       for (const note of this.notes.filter(note => note.id !== this.currentNoteId)) {
-        noteChoices.append(this._menuItem(note.title, () => this._replaceBodySelection(`[[${note.id}|${note.title.replace(/[\[\]|]/g, "")}]]`, bodySelection)));
+        noteChoices.append(this._menuItem(note.title, () => this._replaceBodySelection(`[[${note.id}|${(this._editorMarkdown().slice(bodySelection.start, bodySelection.end) || note.title).replace(/[\[\]|\r\n]/g, " ")}]]`, bodySelection)));
       }
       noteLink.disabled = !bodySelection || !noteChoices.children.length;
       noteLink.append(noteChoices); popup.append(noteLink);
@@ -1949,6 +1984,25 @@ function run(argv) {
       return false;
     }
 
+    async _addSelectionShortcut() {
+      const browser = gBrowser.selectedBrowser;
+      const source = { url: browser.currentURI.spec, title: browser.contentTitle };
+      let text = this.currentNoteId ? window.getSelection()?.toString() : "";
+      if (!text) {
+        const result = await browser.finder.getInitialSelection();
+        text = typeof result === "string" ? result : result?.selectedText || "";
+      }
+      if (!text.trim()) return;
+      await this._filterDeletedNotes();
+      document.getElementById("zen-notes-selection-picker")?.remove();
+      const popup = document.createXULElement("menupopup"); popup.id = "zen-notes-selection-picker";
+      for (const note of this.notes) popup.append(this._menuItem(note.title, () => this._appendSelection(note.id, text, "Text", source)));
+      popup.append(document.createXULElement("menuseparator"));
+      popup.append(this._menuItem("Create Note…", async () => { const note = await this.createNote(); await this._appendSelection(note.id, text, "Text", source); }));
+      document.getElementById("mainPopupSet").append(popup);
+      popup.openPopup(gBrowser.selectedBrowser, "overlap", 24, 24);
+    }
+
     async _addSelectionMenu(popup) {
       popup.querySelector("#zen-notes-add-selection")?.remove();
       popup.querySelector("#zen-notes-add-selection-separator")?.remove();
@@ -1956,6 +2010,7 @@ function run(argv) {
       const generation = this._selectionMenuGeneration = (this._selectionMenuGeneration || 0) + 1;
       await this._filterDeletedNotes();
       if (generation !== this._selectionMenuGeneration) return;
+      const source = { url: context?.browser?.currentURI?.spec || gBrowser.selectedBrowser?.currentURI?.spec, title: context?.browser?.contentTitle || gBrowser.selectedBrowser?.contentTitle };
       const imageURL = context?.onImage ? context.imageURL || context.mediaURL : "";
       const isImage = /^https?:\/\//i.test(imageURL || "");
       const linkURL = context?.onLink ? context.linkURL : "";
@@ -1967,11 +2022,11 @@ function run(argv) {
       menu.dataset.zenNotesMenu = "true";
       menu.setAttribute("label", isLink ? "Add Link to Note" : "Add to Note");
       const choices = document.createXULElement("menupopup");
-      for (const note of this.notes.filter(note => this._hasOpenNoteTab(note.id))) choices.append(this._menuItem(note.title, () => this._appendSelection(note.id, text, isLink ? "Link" : isImage ? "Image" : "Text")));
+      for (const note of this.notes.filter(note => this._hasOpenNoteTab(note.id))) choices.append(this._menuItem(note.title, () => this._appendSelection(note.id, text, isLink ? "Link" : isImage ? "Image" : "Text", source)));
       choices.append(document.createXULElement("menuseparator"));
       choices.append(this._menuItem("Create Note…", async () => {
         const note = await this.createNote();
-        await this._appendSelection(note.id, text, isLink ? "Link" : isImage ? "Image" : "Text");
+        await this._appendSelection(note.id, text, isLink ? "Link" : isImage ? "Image" : "Text", source);
       }));
       menu.append(choices);
       const separator = document.createXULElement("menuseparator");
@@ -1987,7 +2042,11 @@ function run(argv) {
       popup.insertBefore(separator, anchor);
     }
 
-    async _appendSelection(id, text, kind = "Text") {
+    async _appendSelection(id, text, kind = "Text", source = null) {
+      if (source?.url && /^https?:\/\//i.test(source.url)) {
+        const label = (source.title || source.url).replace(/[\[\]\r\n]/g, " ");
+        text += `\n\nSource: [${label}](<${source.url.replace(/>/g, "%3E")}>)`;
+      }
       let added = false;
       if (this.currentNoteId === id) await this._saveCurrentNow();
       await this._enqueueWrite(async () => {
@@ -2010,25 +2069,26 @@ function run(argv) {
       gBrowser.selectedTab = tab || this._openNoteTab(note, { select: true });
     }
 
-    _showAddedToast(id, kind) {
-      document.getElementById("zen-notes-added-toast")?.remove();
-      const toast = this._html("button");
-      toast.id = "zen-notes-added-toast";
-      toast.type = "button";
-      toast.textContent = `${kind} added to note · Open note`;
-      toast.setAttribute("role", "status");
-      toast.addEventListener("click", () => { this._openLinkedNote(id); toast.remove(); });
-      document.documentElement.append(toast);
-      let timer;
-      const dismiss = () => { window.clearTimeout(timer); timer = window.setTimeout(() => toast.remove(), 6000); };
-      toast.addEventListener("mouseenter", () => window.clearTimeout(timer));
-      toast.addEventListener("mouseleave", dismiss);
-      toast.addEventListener("focus", () => window.clearTimeout(timer));
-      toast.addEventListener("blur", dismiss);
-      dismiss();
+    async _showAddedToast(id, kind) {
+      const manager = window.gZenUIManager;
+      if (!manager?.showToast) return;
+      const message = "zen-notes-content-added";
+      const pending = manager.showToast(message, { timeout: 6000,
+        button: { id: "zen-notes-open-added", command: () => this._openLinkedNote(id) } });
+      const toast = Array.from(document.getElementById("zen-toast-container")?.children || []).find(el => el._messageId === message);
+      if (toast) {
+        const label = toast.querySelector("label");
+        label.removeAttribute("data-l10n-id");
+        label.textContent = `${kind} added to note`;
+        label.onclick = () => this._openLinkedNote(id);
+        label.style.cursor = "pointer";
+        const button = toast.querySelector("button");
+        button?.setAttribute("label", "Open note");
+      }
+      await pending;
     }
 
-    async _followLink(link) {
+    async _followLink(link, glance = false) {
       if (link.dataset.target) {
         await this._filterDeletedNotes();
         const target = link.dataset.target.trim();
@@ -2040,7 +2100,11 @@ function run(argv) {
       }
       const href = link.dataset.href;
       if (!/^https?:\/\//i.test(href || "")) return;
-      window.openTrustedLinkIn(href, "tab");
+      if (glance && window.gZenGlanceManager?.openGlance) {
+        await window.gZenGlanceManager.openGlance({ url: href,
+          triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+          width: 1, height: 1, x: 0, y: 0 });
+      } else window.openTrustedLinkIn(href, "tab");
     }
 
     _bindCreateButton() {

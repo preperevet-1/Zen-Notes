@@ -457,12 +457,12 @@
 
 /* Separate Markdown paragraphs; soft breaks retain the normal line height. */
 .zen-notes-line:empty { min-height: .85em; }
-#zen-notes-added-toast {
-  position: fixed; inset-block-start: 20px; inset-inline-end: 20px;
-  z-index: 2147483647; border: 0; border-radius: 16px;
-  padding: 18px 22px; font: 600 14px system-ui; cursor: pointer;
-  color: var(--toolbar-color, CanvasText);
-  background: color-mix(in srgb, var(--zen-primary-color, #8da9dc) 80%, Canvas);
-  box-shadow: 0 8px 28px #0003;
+
+/* Keep quick-action glyphs unframed, including the selected New Note row. */
+.urlbarView-row[dynamicType="zen-actions"] .urlbarView-favicon,
+.urlbarView-row .urlbarView-favicon[src="chrome://browser/skin/zen-icons/file.svg"],
+.urlbarView-row .urlbarView-favicon[src="chrome://global/skin/icons/page-portrait.svg"] {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
 }
-#zen-notes-added-toast:focus-visible { outline: 2px solid Highlight; outline-offset: 3px; }
