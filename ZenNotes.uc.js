@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.8.0-alpha";
+  const VERSION = "0.9.0-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -52,6 +52,7 @@
       this._boostEditor = null;
       this._writes = Promise.resolve();
       this._histories = new Map();
+      this._videoTitles = new Map();
       this._closingNotes = new Set();
 
       this._onPopupShowing = this._onPopupShowing.bind(this);
@@ -113,6 +114,7 @@
           Services.obs.addObserver(this._onBoostUpdate, "zen-boosts-active-change");
         }
 
+        this._registerPaletteAction();
         this._bindCreateButton();
         this._recoverExistingNoteTabs();
         // SessionStore restores tabs. An index entry alone must never reopen a note.
@@ -166,7 +168,7 @@
     async _filterDeletedNotes() {
       const keep = [];
       for (const note of this.notes) {
-        if (await FileIO.exists(this._deletedPath(note.id))) continue;
+        if (await FileIO.exists(this._deletedPath(note.id)) || !(await FileIO.exists(this._notePath(note.id)))) continue;
         keep.push(note);
       }
       this.notes = keep;
@@ -207,9 +209,9 @@
       await this._saveCurrentNow();
       const now = new Date().toISOString();
       const note = { id: this._makeId(), title: "New Note", createdAt: now, updatedAt: now };
+      await FileIO.writeUTF8(this._notePath(note.id), "# New Note\n\n");
       this.notes.unshift(note);
       await this._writeIndex();
-      await FileIO.writeUTF8(this._notePath(note.id), "# New Note\n\n");
 
       this._creatingNote = true;
       try {
@@ -265,7 +267,7 @@
       note.updatedAt = new Date().toISOString();
 
       await this._enqueueWrite(async () => {
-        if (this._closingNotes.has(note.id) || await FileIO.exists(this._deletedPath(note.id))) return;
+        if (this._closingNotes.has(note.id) || await FileIO.exists(this._deletedPath(note.id)) || !(await FileIO.exists(this._notePath(note.id)))) { await this._filterDeletedNotes(); return; }
         await FileIO.writeUTF8(this._notePath(note.id), `# ${noteTitle}\n\n${body}`);
         await this._writeIndex();
       });
@@ -283,7 +285,7 @@
     }
 
     _filledNoteIcon() {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h8l6 5v12a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 3 20V5A2 2 0 0 1 5 3Z" fill="context-stroke" fill-opacity=".35"/><path d="M5 6.5h13.5A1.5 1.5 0 0 1 20 8v12a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3 20V8a1.5 1.5 0 0 1 2-1.5Z" fill="context-fill" stroke="context-stroke" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 11h9M7 15h9" stroke="context-stroke" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 2.5h8l5 5V21H6a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2Z" fill="context-fill" stroke="context-stroke" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 2.5V8h5M8 12h7M8 16h7" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round"/></svg>`;
       return `data:image/svg+xml,${encodeURIComponent(svg)}`;
     }
 
@@ -361,6 +363,7 @@
     }
 
     async _syncSelectedTab() {
+      await this._filterDeletedNotes();
       const id = this._idFromTab(gBrowser.selectedTab);
       if (!id || !this._getNote(id)) {
         if (this.currentNoteId) await this._saveCurrentNow();
@@ -441,6 +444,10 @@
       });
       title.addEventListener("paste", (event) => this._pastePlainText(event));
 
+      page.addEventListener("dragover", event => {
+        if (Array.from(event.dataTransfer?.types || []).includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }
+      });
+      page.addEventListener("drop", event => this._dropImages(event).catch(error => console.error(LOG, error)));
       page.addEventListener("keydown", event => this._pageKeys(event), true);
       page.addEventListener("beforeinput", event => {
         if (event.inputType === "historyUndo" || event.inputType === "historyRedo") {
@@ -723,7 +730,11 @@
 
       const preview = this._youtubePreview(raw);
       if (preview) {
-        line.innerHTML = `<span class="zen-notes-link zen-notes-video-card" data-href="${this._escape(preview.href)}"><img src="https://i.ytimg.com/vi/${preview.id}/hqdefault.jpg" alt="YouTube video preview" referrerpolicy="no-referrer"/><span>▶ YouTube — Open video</span></span>`;
+        const note = this._getNote(this.currentNoteId);
+        const compact = note?.compactVideos?.includes(preview.id);
+        const title = this._videoTitles.get(preview.id) || note?.videoTitles?.[preview.id] || raw.trim().match(/^\[([^\]]+)\]/)?.[1] || "Video";
+        line.innerHTML = `<span class="zen-notes-link zen-notes-video-card" data-href="${this._escape(preview.href)}" data-video-id="${preview.id}">${compact ? "" : `<img src="https://i.ytimg.com/vi/${preview.id}/hqdefault.jpg" alt="Video preview" referrerpolicy="no-referrer"/>`}<span>▶ ${this._escape(title)}</span></span>`;
+        this._loadVideoTitle(preview, line);
         return;
       }
       const task = raw.match(/^(\s*)[-*+]\s+\[([ xX])\]\s?(.*)$/);
@@ -1300,6 +1311,99 @@
       }
     }
 
+    _registerPaletteAction() {
+      try {
+        const { globalActions } = ChromeUtils.importESModule('resource:///modules/ZenUBGlobalActions.sys.mjs');
+        if (!globalActions.some(action => action.commandId === 'zen-notes-create')) {
+          globalActions.push({ commandId: 'zen-notes-create', label: 'New Note',
+            extraPayload: { prettyName: 'New Note Create Note' }, icon: MENU_NOTE_ICON,
+            isAvailable: win => !!win.gZenNotes && !win.gZenNotes._destroyed,
+            command: win => win.gZenNotes.createNote().catch(error => console.error(LOG, error)) });
+        }
+      } catch (error) { console.error(LOG, 'Could not register note palette action', error); }
+    }
+
+    async _dropImages(event) {
+      const files = Array.from(event.dataTransfer?.files || []);
+      if (!files.length) return;
+      event.preventDefault(); event.stopPropagation();
+      const id = this.currentNoteId;
+      let position = null;
+      const target = event.target?.closest?.(".zen-notes-line");
+      if (target) {
+        const lines = Array.from(target.parentElement.children);
+        const before = lines.slice(0, lines.indexOf(target)).reduce((offset, line) => offset + (line.classList.contains("is-editing") ? this._lineText(line) : line.dataset.raw || "").length + 1, 0);
+        const offset = before + this._rawOffsetFromPointer(target, event.clientX, event.clientY);
+        position = { start: offset, end: offset };
+      }
+      const initial = this._editorMarkdown();
+      const images = [];
+      for (const file of files) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const mime = this._imageMime(bytes);
+        if (!mime) continue;
+        let data = '';
+        for (let i = 0; i < bytes.length; i += 8192) data += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        images.push(`![Image](data:${mime};base64,${btoa(data)})`);
+      }
+      if (!images.length || this.currentNoteId !== id) return;
+      const current = this._editorMarkdown();
+      const selection = current === initial && position ? position : { start: current.length, end: current.length };
+      this._replaceBodySelection(images.join('\n'), selection);
+      const active = this._activeLine; this._commitActiveLine(); active?.blur();
+    }
+
+    async _loadVideoTitle(preview, line) {
+      const note = this._getNote(this.currentNoteId);
+      if (note?.videoTitles?.[preview.id]) { this._videoTitles.set(preview.id, note.videoTitles[preview.id]); return; }
+      if (this._videoTitles.has(preview.id)) return;
+      this._videoTitles.set(preview.id, null);
+      try {
+        const response = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${preview.id}`)}&format=json`, { credentials: 'omit', referrerPolicy: 'no-referrer', signal: AbortSignal.timeout(8000) });
+        if (!response.ok) return;
+        const metadata = await response.json();
+        if (typeof metadata.title !== 'string' || !metadata.title.trim()) return;
+        this._videoTitles.set(preview.id, metadata.title);
+        if (note && this._getNote(note.id)) { note.videoTitles = { ...(note.videoTitles || {}), [preview.id]: metadata.title }; await this._writeIndex(); }
+        if (line.isConnected && !line.classList.contains('is-editing') && this._youtubePreview(line.dataset.raw || '')?.id === preview.id) this._renderLine(line);
+      } catch (error) { console.warn(LOG, 'Video title unavailable'); }
+    }
+
+    async _shareTextWithService(name, id) {
+      if (id === this.currentNoteId) await this._saveCurrentNow();
+      const note = this._getNote(id);
+      if (!note) return;
+      const data = await this._readNote(note);
+      const text = `${data.title}\n\n${this._plainNoteText(data.body)}`;
+      const script = `ObjC.import('AppKit'); ObjC.import('Foundation');
+function run(argv) {
+  var done = false;
+  ObjC.registerSubclass({name:'ZenNotesTextShareDelegate',protocols:['NSSharingServiceDelegate'],methods:{
+    'sharingService:didShareItems:':{types:['void',['id','id']],implementation:function(){done=true;}},
+    'sharingService:didFailToShareItems:error:':{types:['void',['id','id','id']],implementation:function(){done=true;}}
+  }});
+  var app=$.NSApplication.sharedApplication;
+  var service=$.NSSharingService.sharingServiceNamed(argv[0]);
+  var items=$([argv[1]]);
+  if (!service || !service.canPerformWithItems(items)) throw Error('This service does not accept text');
+  var delegate=$.ZenNotesTextShareDelegate.alloc.init;
+  service.delegate=delegate;
+  app.activateIgnoringOtherApps(true);
+  service.performWithItems(items);
+  var deadline=Date.now()+300000;
+  while(!done && Date.now()<deadline) $.NSRunLoop.currentRunLoop.runUntilDate($.NSDate.dateWithTimeIntervalSinceNow(0.1));
+}`;
+      const file = Cc['@mozilla.org/file/local;1'].createInstance(Ci.nsIFile);
+      file.initWithPath('/usr/bin/osascript');
+      const process = Cc['@mozilla.org/process/util;1'].createInstance(Ci.nsIProcess);
+      process.init(file);
+      const args = ['-l', 'JavaScript', '-e', script, '--', name, text];
+      await new Promise((resolve, reject) => process.runwAsync(args, args.length, { observe: (_subject, topic) => {
+        if (topic === 'process-finished' && process.exitValue === 0) resolve();
+        else { Services.prompt.alert(window, 'Share Note', 'This service could not share the note as text.'); reject(new Error('Text sharing failed')); }
+      } }, false));
+    }
+
     _youtubePreview(raw) {
       const link = raw.trim().match(/^\[[^\]]*\]\((https?:\/\/[^)]+)\)$/);
       const href = link ? link[1] : raw.trim();
@@ -1361,7 +1465,7 @@
       const plain = this._plainNoteText(data.body);
       // Notes stores its body as HTML internally. Escape text instead of importing
       // an HTML attachment; content is passed as arguments, never executable code.
-      const body = `<div>${this._escape(plain).replace(/\n/g, '<br>')}</div>`;
+      const body = this._exportHTML(data).match(/<body>([\s\S]*)<\/body>/)[1];
       const script = 'on run argv\n tell application "Notes"\n  set newNote to make new note with properties {name:(item 1 of argv), body:(item 2 of argv)}\n  show newNote\n  activate\n end tell\nend run';
       const file = Cc['@mozilla.org/file/local;1'].createInstance(Ci.nsIFile);
       file.initWithPath('/usr/bin/osascript');
@@ -1387,23 +1491,16 @@
         const note = this._getNote(id);
         if (!note) return;
         const data = await this._readNote(note);
-        const dir = Paths.join(Paths.tempDir, "zen-notes-share");
-        await FileIO.makeDirectory(dir, { ignoreExisting: true });
-        const path = Paths.join(dir, `${id}.html`);
-        await FileIO.writeUTF8(path, this._exportHTML(data));
-        const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
-        file.initWithPath(path);
-        const uri = Services.io.newFileURI(file).spec;
         const service = Cc["@mozilla.org/widget/macsharingservice;1"].getService(Ci.nsIMacSharingService);
-        const providers = service.getSharingProviders(uri);
+        const providers = service.getSharingProviders("https://example.com/");
         popup.replaceChildren();
         for (const provider of providers) {
-          popup.append(this._menuItem(provider.menuItemTitle, () => /notes/i.test(provider.name) ? this._sendToAppleNotes(id) : service.shareUrl(provider.name, uri, data.title)));
+          popup.append(this._menuItem(provider.menuItemTitle, () => /notes/i.test(provider.name) ? this._sendToAppleNotes(id) : this._shareTextWithService(provider.name, id)));
         }
         if (!providers.length) popup.append(this._menuItem("No services available — use Export…", () => this._exportNote()));
       } catch (error) {
         console.error(LOG, "Native sharing failed", error);
-        popup.replaceChildren(this._menuItem("Export HTML instead…", () => this._exportNote()));
+        popup.replaceChildren(this._menuItem("Export instead…", () => this._exportNote()));
       }
     }
 
@@ -1743,6 +1840,17 @@
       this._contextMenuOpen = true;
       popup.addEventListener("popuphidden", () => { this._contextMenuOpen = false; }, { once: true });
       popup.replaceChildren();
+      const video = event.target.closest("[data-video-id]");
+      if (video) {
+        const id = video.dataset.videoId, note = this._getNote(this.currentNoteId);
+        const hidden = note?.compactVideos?.includes(id);
+        popup.append(this._menuItem(hidden ? "Show Video Preview" : "Hide Video Preview", async () => {
+          if (!note) return;
+          note.compactVideos = hidden ? note.compactVideos.filter(value => value !== id) : [...(note.compactVideos || []), id];
+          await this._writeIndex(); this._renderAllLines();
+        }));
+        popup.append(document.createXULElement("menuseparator"));
+      }
       for (const [label, command] of [["Copy", "copy"], ["Cut", "cut"], ["Paste", "paste"], ["Select All", "selectAll"]]) {
         const item = this._menuItem(label, () => {
           target?.focus();
@@ -1776,14 +1884,8 @@
         this._insertDivider(position);
       }));
       popup.append(document.createXULElement("menuseparator"));
-      popup.append(this._menuItem("Insert Image from File…", () => this._insertImageFile()));
-      if (Services.appinfo.OS === "Darwin") popup.append(this._menuItem("Send Text to Apple Notes", () => this._sendToAppleNotes()));
+      if (Services.appinfo.OS === "Darwin") popup.append(this._menuItem("Send to Apple Notes", () => this._sendToAppleNotes()));
       popup.append(this._menuItem("Export…", () => this._exportNote()));
-      const share = document.createXULElement("menu"); share.setAttribute("label", "Share…");
-      const sharePopup = document.createXULElement("menupopup");
-      sharePopup.addEventListener("popupshowing", () => this._populateNativeShare(sharePopup, this.currentNoteId));
-      share.append(sharePopup);
-      if (Services.appinfo.OS === "Darwin") popup.append(share);
       popup.append(this._menuItem("Import Markdown…", () => this._importNote()));
       popup.openPopupAtScreen(event.screenX, event.screenY, true);
     }
@@ -1796,10 +1898,13 @@
       return false;
     }
 
-    _addSelectionMenu(popup) {
+    async _addSelectionMenu(popup) {
       popup.querySelector("#zen-notes-add-selection")?.remove();
       popup.querySelector("#zen-notes-add-selection-separator")?.remove();
       const context = window.gContextMenu;
+      const generation = this._selectionMenuGeneration = (this._selectionMenuGeneration || 0) + 1;
+      await this._filterDeletedNotes();
+      if (generation !== this._selectionMenuGeneration) return;
       const imageURL = context?.onImage ? context.imageURL || context.mediaURL : "";
       const isImage = /^https?:\/\//i.test(imageURL || "");
       const text = isImage ? `![Image](<${imageURL.replace(/>/g, "%3E")}>)` : context?.selectionInfo?.fullText || context?.contentData?.selectionInfo?.fullText || context?.selectedText || "";
@@ -1833,7 +1938,7 @@
       if (this.currentNoteId === id) await this._saveCurrentNow();
       await this._enqueueWrite(async () => {
         const note = this._getNote(id);
-        if (!note || this._closingNotes.has(id) || await FileIO.exists(this._deletedPath(id))) return;
+        if (!note || this._closingNotes.has(id) || await FileIO.exists(this._deletedPath(id)) || !(await FileIO.exists(this._notePath(id)))) { await this._filterDeletedNotes(); return; }
         const data = await this._readNote(note);
         await FileIO.writeUTF8(this._notePath(id), `# ${data.title}\n\n${data.body.replace(/\n+$/, "")}\n\n${text}\n`);
         note.updatedAt = new Date().toISOString();
