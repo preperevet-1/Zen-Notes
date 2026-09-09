@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.7.1-alpha";
+  const VERSION = "0.8.0-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -62,6 +62,13 @@
       this._onBoostUpdate = this._onBoostUpdate.bind(this);
       this._onNativeBoostButton = this._onNativeBoostButton.bind(this);
       this._onFindShortcut = event => {
+        const input = globalThis.gURLBar?.inputField;
+        if (event.key === "Enter" && !event.isComposing && !event.metaKey && !event.ctrlKey && !event.altKey && input && (event.target === input || event.composedPath?.().includes(input)) && /^(?:new|create) note$/i.test(input.value.trim())) {
+          event.preventDefault(); event.stopImmediatePropagation();
+          gURLBar.view?.close();
+          this.createNote().catch(error => console.error(LOG, error));
+          return;
+        }
         if (this.currentNoteId && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "f") {
           event.preventDefault(); event.stopImmediatePropagation(); this._openFind();
         }
@@ -197,15 +204,20 @@
     }
 
     async createNote() {
+      await this._saveCurrentNow();
       const now = new Date().toISOString();
       const note = { id: this._makeId(), title: "New Note", createdAt: now, updatedAt: now };
       this.notes.unshift(note);
       await this._writeIndex();
       await FileIO.writeUTF8(this._notePath(note.id), "# New Note\n\n");
 
-      const tab = this._openNoteTab(note, { select: true });
-      this.noteTabs.set(note.id, tab);
-      await this._showNote(note.id, { focusTitle: true });
+      this._creatingNote = true;
+      try {
+        const tab = this._openNoteTab(note, { select: true });
+        this.noteTabs.set(note.id, tab);
+        await this._showNote(note.id, { focusTitle: true });
+      } finally { this._creatingNote = false; }
+      await this._syncSelectedTab();
       return note;
     }
 
@@ -271,7 +283,7 @@
     }
 
     _filledNoteIcon() {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 2.5h8l5 5V21H6a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2Z" fill="context-fill" stroke="context-stroke" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 2.5V8h5M8 12h7M8 16h7" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h8l6 5v12a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 3 20V5A2 2 0 0 1 5 3Z" fill="context-stroke" fill-opacity=".35"/><path d="M5 6.5h13.5A1.5 1.5 0 0 1 20 8v12a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3 20V8a1.5 1.5 0 0 1 2-1.5Z" fill="context-fill" stroke="context-stroke" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 11h9M7 15h9" stroke="context-stroke" stroke-width="1.4" stroke-linecap="round"/></svg>`;
       return `data:image/svg+xml,${encodeURIComponent(svg)}`;
     }
 
@@ -307,13 +319,14 @@
         const principal = Services?.scriptSecurityManager?.getSystemPrincipal?.();
         tab = gBrowser.addTab(url, {
           skipAnimation: true,
-          inBackground: background || !select,
+          inBackground: true,
           triggeringPrincipal: principal,
         });
       } catch {
-        tab = gBrowser.addTab(url, { skipAnimation: true, inBackground: background || !select });
+        tab = gBrowser.addTab(url, { skipAnimation: true, inBackground: true });
       }
       this._markTab(tab, note);
+      this.noteTabs.set(note.id, tab);
       if (select) gBrowser.selectedTab = tab;
       return tab;
     }
@@ -334,7 +347,7 @@
       if (note && tab) this._markTab(tab, note);
     }
 
-    async _onTabSelect() { await this._syncSelectedTab(); }
+    async _onTabSelect() { if (!this._creatingNote) await this._syncSelectedTab(); }
 
     async _onTabClose(event) {
       const tab = event.target;
@@ -678,6 +691,9 @@
         const separator = row && raw.trim().slice(1, -1).split("|").every(cell => /^\s*:?-{3,}:?\s*$/.test(cell));
         line.classList.toggle("is-table-row", row);
         line.classList.toggle("is-table-divider", separator);
+        const quote = /^>\s?/.test(raw);
+        line.classList.toggle("is-quote-start", quote && !/^>\s?/.test(tableLines[i - 1]?.dataset.raw || ""));
+        line.classList.toggle("is-quote-end", quote && !/^>\s?/.test(tableLines[i + 1]?.dataset.raw || ""));
         const prev = tableLines[i - 1];
         line.classList.toggle("is-table-start", row && (!prev || !/^\s*\|.*\|\s*$/.test(prev.dataset.raw || "")));
       }
@@ -705,6 +721,11 @@
         return;
       }
 
+      const preview = this._youtubePreview(raw);
+      if (preview) {
+        line.innerHTML = `<span class="zen-notes-link zen-notes-video-card" data-href="${this._escape(preview.href)}"><img src="https://i.ytimg.com/vi/${preview.id}/hqdefault.jpg" alt="YouTube video preview" referrerpolicy="no-referrer"/><span>▶ YouTube — Open video</span></span>`;
+        return;
+      }
       const task = raw.match(/^(\s*)[-*+]\s+\[([ xX])\]\s?(.*)$/);
       if (task) {
         const depth = Math.floor(task[1].length / INDENT.length);
@@ -1279,6 +1300,79 @@
       }
     }
 
+    _youtubePreview(raw) {
+      const link = raw.trim().match(/^\[[^\]]*\]\((https?:\/\/[^)]+)\)$/);
+      const href = link ? link[1] : raw.trim();
+      let url;
+      try { url = new URL(href); } catch { return null; }
+      if (!['https:', 'http:'].includes(url.protocol)) return null;
+      let id = null;
+      if (url.hostname === 'youtu.be') id = url.pathname.slice(1);
+      else if (['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(url.hostname)) {
+        id = url.pathname === '/watch' ? url.searchParams.get('v') : url.pathname.match(/^\/(?:shorts|embed|live)\/([^/]+)$/)?.[1];
+      }
+      return /^[A-Za-z0-9_-]{11}$/.test(id || '') ? { id, href: url.href } : null;
+    }
+
+    async _insertImageFile() {
+      const noteId = this.currentNoteId;
+      const selection = this._bodySelection();
+      const original = this._editorMarkdown();
+      const picker = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
+      picker.init(window.browsingContext, "Insert Image", Ci.nsIFilePicker.modeOpen);
+      picker.appendFilter("Images", "*.png;*.jpg;*.jpeg;*.gif;*.webp");
+      const result = await new Promise(resolve => picker.open(resolve));
+      if (result !== Ci.nsIFilePicker.returnOK || this.currentNoteId !== noteId) return;
+      const bytes = await FileIO.read(picker.file.path);
+      const mime = this._imageMime(bytes);
+      if (!mime) throw new Error("Unsupported image: choose PNG, JPEG, GIF or WebP");
+      let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+      const markdown = `![Image](data:${mime};base64,${btoa(binary)})`;
+      if (this.currentNoteId !== noteId) return;
+      const position = selection && this._editorMarkdown() === original ? selection : { start: this._editorMarkdown().length, end: this._editorMarkdown().length };
+      this._replaceBodySelection(markdown, position);
+      const active = this._activeLine; this._commitActiveLine(); active?.blur();
+    }
+
+    _imageMime(bytes) {
+      if (bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71) return 'image/png';
+      if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return 'image/jpeg';
+      if (String.fromCharCode(...bytes.slice(0, 3)) === 'GIF') return 'image/gif';
+      if (String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') return 'image/webp';
+      return null;
+    }
+
+    _plainNoteText(body) {
+      return body.split('\n').map(raw => {
+        let text = raw.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) => /^data:/i.test(url) ? `[${alt || 'Image'}]` : `${alt || 'Image'}: ${url}`);
+        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 — $2');
+        text = text.replace(/<\/?u>/g, '').replace(/\|\|/g, '');
+        return this._visibleTextForRaw(text);
+      }).join('\n');
+    }
+
+    async _sendToAppleNotes(id = this.currentNoteId) {
+      if (Services.appinfo.OS !== 'Darwin') return;
+      if (id === this.currentNoteId) await this._saveCurrentNow();
+      const note = this._getNote(id);
+      if (!note) return;
+      const data = await this._readNote(note);
+      const plain = this._plainNoteText(data.body);
+      // Notes stores its body as HTML internally. Escape text instead of importing
+      // an HTML attachment; content is passed as arguments, never executable code.
+      const body = `<div>${this._escape(plain).replace(/\n/g, '<br>')}</div>`;
+      const script = 'on run argv\n tell application "Notes"\n  set newNote to make new note with properties {name:(item 1 of argv), body:(item 2 of argv)}\n  show newNote\n  activate\n end tell\nend run';
+      const file = Cc['@mozilla.org/file/local;1'].createInstance(Ci.nsIFile);
+      file.initWithPath('/usr/bin/osascript');
+      const process = Cc['@mozilla.org/process/util;1'].createInstance(Ci.nsIProcess);
+      process.init(file);
+      const args = ['-e', script, '--', data.title, body];
+      await new Promise((resolve, reject) => process.runwAsync(args, args.length, {
+        observe: (_subject, topic) => topic === 'process-finished' && process.exitValue === 0 ? resolve() : reject(new Error('Apple Notes did not accept the note. Check macOS Automation permission for Zen.'))
+      }, false));
+    }
+
     _insertDivider(position) {
       const body = this._editorMarkdown();
       const left = body.slice(0, position.start), right = body.slice(position.end);
@@ -1304,7 +1398,7 @@
         const providers = service.getSharingProviders(uri);
         popup.replaceChildren();
         for (const provider of providers) {
-          popup.append(this._menuItem(provider.menuItemTitle, () => service.shareUrl(provider.name, uri, data.title)));
+          popup.append(this._menuItem(provider.menuItemTitle, () => /notes/i.test(provider.name) ? this._sendToAppleNotes(id) : service.shareUrl(provider.name, uri, data.title)));
         }
         if (!providers.length) popup.append(this._menuItem("No services available — use Export…", () => this._exportNote()));
       } catch (error) {
@@ -1682,6 +1776,8 @@
         this._insertDivider(position);
       }));
       popup.append(document.createXULElement("menuseparator"));
+      popup.append(this._menuItem("Insert Image from File…", () => this._insertImageFile()));
+      if (Services.appinfo.OS === "Darwin") popup.append(this._menuItem("Send Text to Apple Notes", () => this._sendToAppleNotes()));
       popup.append(this._menuItem("Export…", () => this._exportNote()));
       const share = document.createXULElement("menu"); share.setAttribute("label", "Share…");
       const sharePopup = document.createXULElement("menupopup");
