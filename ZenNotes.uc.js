@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.9.1-alpha";
+  const VERSION = "0.10.0-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -574,8 +574,9 @@
       line.spellcheck = true;
 
       line.addEventListener("pointerdown", (event) => this._onLinePointerDown(event, line));
-      line.addEventListener("mousedown", event => { if (event.button === 2) event.preventDefault(); });
-      line.addEventListener("focus", () => this._activateLine(line));
+      line.addEventListener("mousedown", event => { if (event.button === 2 || line._suppressMouseFocusUntil > Date.now()) event.preventDefault(); });
+      line.addEventListener("click", event => { if (line._suppressMouseFocusUntil > Date.now()) { event.preventDefault(); event.stopPropagation(); } });
+      line.addEventListener("focus", () => { if (line._suppressMouseFocusUntil > Date.now()) { line.blur(); return; } this._activateLine(line); });
       line.addEventListener("blur", () => {
         // Delay so clicks on task checkbox can complete before render.
         window.setTimeout(() => {
@@ -616,6 +617,8 @@
       if (spoiler) { event.preventDefault(); spoiler.classList.toggle("is-revealed"); return; }
       const checkbox = event.target?.closest?.(".zen-notes-task-checkbox");
       if (checkbox) {
+        line._suppressMouseFocusUntil = Date.now() + 600;
+        this._recordHistory();
         event.preventDefault();
         event.stopPropagation();
         const raw = line.dataset.raw || "";
@@ -1025,6 +1028,7 @@
       this._activateLine(line);
       line.focus();
       this._setCaret(line, offset);
+      this._refreshInline(line);
     }
 
     _replaceLineRaw(line, raw, caret = null) {
@@ -1065,7 +1069,9 @@
       this._replaceLineRaw(line, currentRaw, currentRaw.length);
       this._commitLine(line);
       const next = this._makeLine(nextRaw);
-      line.after(next);
+      const paragraph = !info.prefix && line.dataset.codeBlock !== "true" && before.trim();
+      if (paragraph) line.after(this._makeLine(""), next);
+      else line.after(next);
       this._renderAllLines();
       this._focusLine(next, (info.prefix || "").length);
       this._queueSave();
@@ -1661,8 +1667,7 @@ function run(argv) {
       while ((match = pattern.exec(raw))) {
         result += this._escape(raw.slice(end, match.index));
         const finish = match.index + match[0].length;
-        if (selected.start >= match.index && selected.start < finish) result += this._escape(match[0]);
-        else {
+        {
           const tag = { '**': 'strong', '__': 'strong', '~~': 'del', '==': 'mark', '`': 'code', '*': 'em', '_': 'em' }[match[1]];
           const marker = `<span class="zen-notes-source-marker">${this._escape(match[1])}</span>`;
           result += `${marker}<${tag}>${this._escape(match[2])}</${tag}>${marker}`;
@@ -1918,6 +1923,13 @@ function run(argv) {
         item.disabled = !bodySelection; options.append(item);
       }
       formatting.append(options); popup.append(document.createXULElement("menuseparator"), formatting);
+      const noteLink = document.createXULElement("menu"); noteLink.setAttribute("label", "Link to Note");
+      const noteChoices = document.createXULElement("menupopup");
+      for (const note of this.notes.filter(note => note.id !== this.currentNoteId)) {
+        noteChoices.append(this._menuItem(note.title, () => this._replaceBodySelection(`[[${note.id}|${note.title.replace(/[\[\]|]/g, "")}]]`, bodySelection)));
+      }
+      noteLink.disabled = !bodySelection || !noteChoices.children.length;
+      noteLink.append(noteChoices); popup.append(noteLink);
       popup.append(this._menuItem("Add Divider", () => {
         const position = bodySelection || { start: this._editorMarkdown().length, end: this._editorMarkdown().length };
         this._insertDivider(position);
@@ -1946,18 +1958,20 @@ function run(argv) {
       if (generation !== this._selectionMenuGeneration) return;
       const imageURL = context?.onImage ? context.imageURL || context.mediaURL : "";
       const isImage = /^https?:\/\//i.test(imageURL || "");
-      const text = isImage ? `![Image](<${imageURL.replace(/>/g, "%3E")}>)` : context?.selectionInfo?.fullText || context?.contentData?.selectionInfo?.fullText || context?.selectedText || "";
+      const linkURL = context?.onLink ? context.linkURL : "";
+      const isLink = !isImage && /^(?:https?:|mailto:)/i.test(linkURL || "");
+      const text = isLink ? linkURL : isImage ? `![Image](<${imageURL.replace(/>/g, "%3E")}>)` : context?.selectionInfo?.fullText || context?.contentData?.selectionInfo?.fullText || context?.selectedText || "";
       if (typeof text !== "string" || !text.trim()) return;
       const menu = document.createXULElement("menu");
       menu.id = "zen-notes-add-selection";
       menu.dataset.zenNotesMenu = "true";
-      menu.setAttribute("label", "Add to Note");
+      menu.setAttribute("label", isLink ? "Add Link to Note" : "Add to Note");
       const choices = document.createXULElement("menupopup");
-      for (const note of this.notes.filter(note => this._hasOpenNoteTab(note.id))) choices.append(this._menuItem(note.title, () => this._appendSelection(note.id, text)));
+      for (const note of this.notes.filter(note => this._hasOpenNoteTab(note.id))) choices.append(this._menuItem(note.title, () => this._appendSelection(note.id, text, isLink ? "Link" : isImage ? "Image" : "Text")));
       choices.append(document.createXULElement("menuseparator"));
       choices.append(this._menuItem("Create Note…", async () => {
         const note = await this.createNote();
-        await this._appendSelection(note.id, text);
+        await this._appendSelection(note.id, text, isLink ? "Link" : isImage ? "Image" : "Text");
       }));
       menu.append(choices);
       const separator = document.createXULElement("menuseparator");
@@ -1973,7 +1987,8 @@ function run(argv) {
       popup.insertBefore(separator, anchor);
     }
 
-    async _appendSelection(id, text) {
+    async _appendSelection(id, text, kind = "Text") {
+      let added = false;
       if (this.currentNoteId === id) await this._saveCurrentNow();
       await this._enqueueWrite(async () => {
         const note = this._getNote(id);
@@ -1982,16 +1997,44 @@ function run(argv) {
         await FileIO.writeUTF8(this._notePath(id), `# ${data.title}\n\n${data.body.replace(/\n+$/, "")}\n\n${text}\n`);
         note.updatedAt = new Date().toISOString();
         await this._writeIndex();
+        added = true;
       });
-      if (this.currentNoteId === id) await this._showNote(id);
+      if (added && this.currentNoteId === id) await this._showNote(id);
+      if (added) this._showAddedToast(id, kind);
+    }
+
+    _openLinkedNote(id) {
+      const note = this._getNote(id);
+      if (!note) return;
+      const tab = Array.from(gBrowser.tabs).find(tab => !tab.closing && this._idFromTab(tab) === id);
+      gBrowser.selectedTab = tab || this._openNoteTab(note, { select: true });
+    }
+
+    _showAddedToast(id, kind) {
+      document.getElementById("zen-notes-added-toast")?.remove();
+      const toast = this._html("button");
+      toast.id = "zen-notes-added-toast";
+      toast.type = "button";
+      toast.textContent = `${kind} added to note · Open note`;
+      toast.setAttribute("role", "status");
+      toast.addEventListener("click", () => { this._openLinkedNote(id); toast.remove(); });
+      document.documentElement.append(toast);
+      let timer;
+      const dismiss = () => { window.clearTimeout(timer); timer = window.setTimeout(() => toast.remove(), 6000); };
+      toast.addEventListener("mouseenter", () => window.clearTimeout(timer));
+      toast.addEventListener("mouseleave", dismiss);
+      toast.addEventListener("focus", () => window.clearTimeout(timer));
+      toast.addEventListener("blur", dismiss);
+      dismiss();
     }
 
     async _followLink(link) {
       if (link.dataset.target) {
-        const target = link.dataset.target;
-        const note = this.notes.find(note => note.title.toLowerCase() === target.toLowerCase());
+        await this._filterDeletedNotes();
+        const target = link.dataset.target.trim();
+        const note = this.notes.find(note => note.id === target) || this.notes.find(note => note.title.toLowerCase() === target.toLowerCase());
         if (note) {
-          gBrowser.selectedTab = this.noteTabs.get(note.id) || this._openNoteTab(note, { select: true });
+          this._openLinkedNote(note.id);
         }
         return;
       }
