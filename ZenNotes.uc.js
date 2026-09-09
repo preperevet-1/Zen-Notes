@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.9.0-alpha";
+  const VERSION = "0.9.1-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -262,7 +262,7 @@
 
       if (this._activeLine) this._activeLine.dataset.raw = this._lineText(this._activeLine);
       const noteTitle = title.textContent.trim() || "New Note";
-      const body = this._editorMarkdown();
+      const body = this._expandImages(this._editorMarkdown());
       note.title = noteTitle;
       note.updatedAt = new Date().toISOString();
 
@@ -460,6 +460,14 @@
           event.preventDefault(); this._replaceBodySelection(event.data || "", selected);
         }
       }, true);
+      page.addEventListener("copy", event => {
+        const selected = window.getSelection()?.toString() || "";
+        const expanded = this._expandImages(selected);
+        if (expanded !== selected && event.clipboardData) {
+          event.clipboardData.setData("text/plain", expanded);
+          event.preventDefault();
+        }
+      });
       page.addEventListener("contextmenu", event => this._editorContextMenu(event));
       canvas.append(title, editor);
       scroll.append(canvas);
@@ -538,7 +546,27 @@
       host?.removeAttribute?.("zen-notes-active");
     }
 
+    // Short editor references keep selection/caret offsets small. The portable
+    // Markdown on disk still contains the original bytes; no external file can go missing.
+    _compactImages(raw) {
+      this._imageSources ||= new Map();
+      this._imageAliases ||= new Map();
+      return raw.replace(/data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+/gi, source => {
+        if (!this._imageAliases.has(source)) {
+          const alias = `zen-image:${this._imageSources.size + 1}`;
+          this._imageAliases.set(source, alias);
+          this._imageSources.set(alias, source);
+        }
+        return this._imageAliases.get(source);
+      });
+    }
+
+    _expandImages(raw) {
+      return raw.replace(/zen-image:\d+\b/g, alias => this._imageSources?.get(alias) || alias);
+    }
+
     _makeLine(raw = "") {
+      raw = this._compactImages(raw);
       const line = this._html("div");
       line.className = "zen-notes-line";
       line.dataset.raw = raw;
@@ -546,6 +574,7 @@
       line.spellcheck = true;
 
       line.addEventListener("pointerdown", (event) => this._onLinePointerDown(event, line));
+      line.addEventListener("mousedown", event => { if (event.button === 2) event.preventDefault(); });
       line.addEventListener("focus", () => this._activateLine(line));
       line.addEventListener("blur", () => {
         // Delay so clicks on task checkbox can complete before render.
@@ -571,7 +600,11 @@
     }
 
     _onLinePointerDown(event, line) {
-      if (event.button !== 0) return;
+      if (event.button !== 0) {
+        // Cancel the focus default without cancelling the subsequent contextmenu.
+        if (event.button === 2) event.preventDefault();
+        return;
+      }
       const link = event.target?.closest?.(".zen-notes-link, .zen-notes-wikilink");
       if (link) {
         event.preventDefault();
@@ -742,7 +775,7 @@
         const depth = Math.floor(task[1].length / INDENT.length);
         line.style.setProperty("--zen-notes-indent", depth);
         const checked = task[2].toLowerCase() === "x";
-        line.innerHTML = `<span class="zen-notes-task-checkbox" data-checked="${checked}"></span><span class="zen-notes-list-content${checked ? " is-done" : ""}">${this._inline(task[3]) || "<br/>"}</span>`;
+        line.innerHTML = `<span class="zen-notes-task-checkbox" role="checkbox" aria-checked="${checked}" aria-label="Task" data-checked="${checked}"></span><span class="zen-notes-list-content${checked ? " is-done" : ""}">${this._inline(task[3]) || "<br/>"}</span>`;
         return;
       }
 
@@ -816,7 +849,7 @@
     }
 
     _inline(raw) {
-      let text = this._escape(raw);
+      let text = this._escape(this._expandImages(raw));
       const stash = [];
       const token = (html) => `\uE000${stash.push(html) - 1}\uE001`;
 
@@ -1125,6 +1158,7 @@
     }
 
     _insertAtSelection(line, value) {
+      value = this._compactImages(value);
       const raw = this._lineText(line);
       const { start, end } = this._selectionOffsets(line);
       const next = raw.slice(0, start) + value + raw.slice(end);
@@ -1147,7 +1181,8 @@
         reader.readAsDataURL(image.getAsFile());
         return;
       }
-      const text = event.clipboardData?.getData("text/plain");
+      const clipboardText = event.clipboardData?.getData("text/plain");
+      const text = typeof clipboardText === "string" ? this._compactImages(clipboardText) : clipboardText;
       if (typeof text !== "string") return;
       event.preventDefault();
       event.stopPropagation();
@@ -1314,9 +1349,11 @@
     _registerPaletteAction() {
       try {
         const { globalActions } = ChromeUtils.importESModule('resource:///modules/ZenUBGlobalActions.sys.mjs');
-        if (!globalActions.some(action => action.commandId === 'zen-notes-create')) {
+        const existing = globalActions.find(action => action.commandId === 'zen-notes-create');
+        if (existing?.extraPayload) delete existing.extraPayload.prettyName;
+        if (!existing) {
           globalActions.push({ commandId: 'zen-notes-create', label: 'New Note',
-            extraPayload: { prettyName: 'New Note Create Note' }, icon: MENU_NOTE_ICON,
+            extraPayload: {}, icon: MENU_NOTE_ICON,
             isAvailable: win => !!win.gZenNotes && !win.gZenNotes._destroyed,
             command: win => win.gZenNotes.createNote().catch(error => console.error(LOG, error)) });
         }
@@ -1712,6 +1749,7 @@ function run(argv) {
 
     _replaceBodySelection(text, selection = this._bodySelection()) {
       if (!selection) return;
+      text = this._compactImages(text);
       this._recordHistory();
       const body = this._editorMarkdown();
       const result = body.slice(0, selection.start) + text + body.slice(selection.end);
@@ -1734,6 +1772,7 @@ function run(argv) {
       let value = selected;
       if (wraps[action]) value = wraps[action][0] + selected + wraps[action][1];
       else if (action === "clear") value = selected.replace(/!?(\[([^\]]*)\])\([^)]*\)/g, "$2").replace(/<\/?u>/g, "").replace(/(\*\*|__|~~|==|\|\||`|\*|_)/g, "").replace(/^\s*(?:#{1,6}\s+|>\s?)/gm, "");
+      else if (action === "task") value = selected.split("\n").map(line => /^\s*[-*+]\s+\[[ xX]\]/.test(line) ? line : `- [ ] ${line.replace(/^\s*[-*+]\s+/, "")}`).join("\n");
       else if (action === "quote") value = selected.split("\n").map(line => `> ${line}`).join("\n");
       else if (action === "date") value = new Date().toLocaleDateString();
       else if (action === "upper") value = selected.toLocaleUpperCase();
@@ -1869,7 +1908,7 @@ function run(argv) {
         ["Strikethrough", "strike", "⇧" + modifier + "X"], ["Underline", "underline", "⇧" + modifier + "U"],
         ["Spoiler", "spoiler", "⇧" + modifier + "P"], ["Monospace", "code", "⇧" + modifier + "K"],
         ["Italic", "italic", modifier + "I"], ["Bold", "bold", modifier + "B"], ["Make Link", "link", modifier + "U"],
-        ["Date", "date", ""], ["Quote", "quote", "⇧" + modifier + "I"], null,
+        ["Task List", "task", ""], ["Date", "date", ""], ["Quote", "quote", "⇧" + modifier + "I"], null,
         ["Make Upper Case", "upper", ""], ["Make Lower Case", "lower", ""], ["Capitalize", "capitalize", ""]];
       for (const entry of entries) {
         if (!entry) { options.append(document.createXULElement("menuseparator")); continue; }
