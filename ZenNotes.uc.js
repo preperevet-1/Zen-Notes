@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.14.3-alpha";
+  const VERSION = "0.14.4-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -478,7 +478,9 @@
     _registerNotesProvider() {
       try {
         const { UrlbarProvider } = ChromeUtils.importESModule("moz-src:///browser/components/urlbar/UrlbarUtils.sys.mjs");
-        const { UrlbarProvidersManager } = ChromeUtils.importESModule("moz-src:///browser/components/urlbar/UrlbarProvidersManager.sys.mjs");
+        const managers = ChromeUtils.importESModule("moz-src:///browser/components/urlbar/UrlbarProvidersManager.sys.mjs");
+        const UrlbarProvidersManager = managers.ProvidersManager?.getInstanceForSap(globalThis.gURLBar?.sapName || "urlbar") || managers.UrlbarProvidersManager;
+        if (!UrlbarProvidersManager) throw new Error("URL bar providers manager unavailable");
         const { UrlbarShared } = ChromeUtils.importESModule("chrome://browser/content/urlbar/UrlbarShared.mjs");
         const { UrlbarResult } = ChromeUtils.importESModule("chrome://browser/content/urlbar/UrlbarResult.mjs");
         const { BrowserWindowTracker } = ChromeUtils.importESModule("resource:///modules/BrowserWindowTracker.sys.mjs");
@@ -495,7 +497,7 @@
             await controller._filterDeletedNotes(); if (this.cancelled || generation !== this.generation) return;
             const query = context.searchString.trim().replace(/^notes\s*/i, "").toLocaleLowerCase();
             const matches = controller.notes.filter(note => note.title.toLocaleLowerCase().includes(query));
-            const entries = [{ title: "Create Note", command: owner => owner.gZenNotes.createNote() }, ...matches.map(note => ({ title: note.title, command: owner => owner.gZenNotes._openLinkedNote(note.id) }))];
+            const entries = [{ title: "New Note", command: owner => owner.gZenNotes.createNote() }, ...matches.map(note => ({ title: note.title, command: owner => owner.gZenNotes._openLinkedNote(note.id) }))];
             entries.forEach((entry, index) => add(this, new UrlbarResult({ type: UrlbarShared.RESULT_TYPE.DYNAMIC, source: UrlbarShared.RESULT_SOURCE.ZEN_ACTIONS,
               payload: { dynamicType: "zen-actions", zenAction: true, title: entry.title, suggestion: entry.title, query: context.searchString, icon: MENU_NOTE_ICON, zenCommand: entry.command, shortcutContent: "" },
               heuristic: index === 0, suggestedIndex: index })));
