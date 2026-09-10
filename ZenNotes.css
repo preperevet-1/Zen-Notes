@@ -484,13 +484,15 @@
 
 .zen-notes-source { margin-inline-start: .3em; }
 .zen-notes-page-host { isolation: auto !important; }
+/* A note's backing about:home must not flash while its editor is mounting. */
+browser[zen-notes-content="true"] { visibility: hidden !important; }
 
 .zen-notes-footer { position: absolute; top: 14px; right: 22px; z-index: 3; max-width: calc(100% - 44px); color: color-mix(in srgb, var(--zen-notes-page-fg) 55%, var(--zen-notes-page-bg)); background: var(--zen-notes-page-bg); font-size: 12px; line-height: 1.5; pointer-events: none; }
 .zen-notes-footer:empty { display: none; }
 .zen-notes-footer button { color: inherit; font: inherit; cursor: pointer; margin-inline-start: 12px; }
 .zen-notes-pdf-card { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; padding: 12px 16px; border-radius: 10px; background: color-mix(in srgb, var(--zen-notes-accent) 8%, transparent); overflow-wrap: anywhere; }
 .zen-notes-pdf-card, .zen-notes-pdf-card * { text-decoration: none !important; }
-.zen-notes-file-icon { display: inline-block; width: 24px; height: 24px; flex: 0 0 24px; background-color: currentColor; mask-repeat: no-repeat; mask-position: center; mask-size: contain; }
+.zen-notes-file-icon { display: inline-block; width: 16px; height: 16px; flex: 0 0 16px; background-color: currentColor; mask-repeat: no-repeat; mask-position: center; mask-size: contain; }
 .zen-notes-line.is-image-line:not(.is-editing) { display: inline-flex; vertical-align: top; flex-wrap: wrap; gap: 10px; max-width: 100%; margin: 6px 10px 6px 0; white-space: normal; }
 .zen-notes-image-frame { display: inline-block; position: relative; vertical-align: top; max-width: 100%; flex: 0 1 auto; line-height: 0; }
 .zen-notes-image-frame .zen-notes-image { display: block; width: auto; height: auto; max-height: none; margin: 0; object-fit: contain; }
