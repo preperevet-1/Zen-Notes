@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.14.2-alpha";
+  const VERSION = "0.14.3-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
   const TAB_URL_PREFIX = "about:home#zen-note=";
@@ -118,6 +118,7 @@
     async init() {
       try {
         await FileIO.makeDirectory(this.storageDir, { ignoreExisting: true });
+        await this._migrateDeletedMarkers();
         await this._loadIndex();
 
         this._reserveNoteShortcuts();
@@ -216,7 +217,24 @@
       return pending;
     }
 
-    _deletedPath(id) { return Paths.join(this.storageDir, `${id}.deleted`); }
+    _deletedPath(id) { return Paths.join(this.storageDir, ".deleted", `${id}.deleted`); }
+
+    async _migrateDeletedMarkers() {
+      await FileIO.makeDirectory(Paths.join(this.storageDir, ".deleted"), { ignoreExisting: true });
+      for (const path of await FileIO.getChildren(this.storageDir)) {
+        const name = Paths.filename(path);
+        if (!name.endsWith(".deleted") || name === ".deleted") continue;
+        try {
+        if ((await FileIO.stat(path)).type !== "regular") continue;
+        const destination = Paths.join(this.storageDir, ".deleted", name);
+        // Keep the marker until its replacement has been written successfully.
+        if (!(await FileIO.exists(destination))) await FileIO.writeUTF8(destination, await FileIO.readUTF8(path));
+        await FileIO.remove(path, { ignoreAbsent: true });
+        } catch (error) {
+          if (await FileIO.exists(path)) throw error;
+        }
+      }
+    }
 
     async _filterDeletedNotes() {
       const keep = [];
@@ -512,6 +530,8 @@
     _imagePointer(event) {
       const frame = event.target.closest?.(".zen-notes-image-frame");
       if (!frame || event.button !== 0) return;
+      const imageLine = frame.closest(".zen-notes-line");
+      if (imageLine) imageLine._suppressMouseFocusUntil = Date.now() + 1000;
       event.preventDefault(); event.stopImmediatePropagation();
       const handle = event.target.closest?.(".zen-notes-image-resize");
       if (!handle) return;
@@ -520,6 +540,7 @@
       this._recordHistory(); handle.setPointerCapture?.(event.pointerId);
       const move = e => { if (this.currentNoteId === id && line.isConnected) frame.style.width = `${Math.min(1600, Math.max(64, width + e.clientX - start))}px`; };
       const finish = e => {
+        if (imageLine) imageLine._suppressMouseFocusUntil = Date.now() + 600;
         handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", finish); handle.removeEventListener("pointercancel", finish);
         if (this.currentNoteId !== id || line.dataset.raw !== original) return;
         if (e.type === "pointercancel") frame.style.width = `${width}px`; else this._resizeImage(line, index, width + e.clientX - start);
@@ -1012,7 +1033,7 @@
       line.spellcheck = false;
 
       line.addEventListener("pointerdown", (event) => this._onLinePointerDown(event, line));
-      line.addEventListener("mousedown", event => { if (event.button === 2 || line._suppressMouseFocusUntil > Date.now()) event.preventDefault(); });
+      line.addEventListener("mousedown", event => { if (event.button === 2 || event.target.closest?.(".zen-notes-image-frame") || line._suppressMouseFocusUntil > Date.now()) event.preventDefault(); });
       line.addEventListener("click", event => { if (line._suppressMouseFocusUntil > Date.now()) { event.preventDefault(); event.stopPropagation(); } });
       line.addEventListener("focus", () => { if (line._suppressMouseFocusUntil > Date.now()) { line.blur(); return; } this._activateLine(line); });
       line.addEventListener("blur", () => {
@@ -1364,7 +1385,7 @@
         if (!/^(?:https?:\/\/|data:image\/(?:png|jpeg|gif|webp);base64,)/i.test(url)) return token(`<span class="zen-notes-embed">${cleanAlt || "Image: unsupported URL"}</span>`);
         if (exporting) return token(`<img class="zen-notes-image" src="${url}" alt="${cleanAlt}"${width ? ` width="${width}"` : ""}/>`);
         const index = imageIndex++;
-        return token(`<span class="zen-notes-image-frame" data-image-index="${index}"${width ? ` style="width:${Math.max(64, Math.min(1600, width))}px"` : ""}><img class="zen-notes-image" src="${url}" alt="${cleanAlt}" loading="lazy" referrerpolicy="no-referrer"/><span class="zen-notes-image-resize" aria-label="Resize image"></span></span>`);
+        return token(`<span class="zen-notes-image-frame" contenteditable="false" data-image-index="${index}"${width ? ` style="width:${Math.max(64, Math.min(1600, width))}px"` : ""}><img class="zen-notes-image" draggable="false" src="${url}" alt="${cleanAlt}" loading="lazy" referrerpolicy="no-referrer"/><span class="zen-notes-image-resize" aria-label="Resize image"></span></span>`);
       });
       text = text.replace(/\[Source: ([^\]]*)\]\((?:&lt;)?(https?:[^)]+)\)/g, (_, label, target) => {
         const href = target.replace(/^&lt;|&gt;$/g, "");
