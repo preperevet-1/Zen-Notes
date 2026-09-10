@@ -490,7 +490,7 @@
 .zen-notes-footer button { color: inherit; font: inherit; cursor: pointer; margin-inline-start: 12px; }
 .zen-notes-pdf-card { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; padding: 12px 16px; border-radius: 10px; background: color-mix(in srgb, var(--zen-notes-accent) 8%, transparent); overflow-wrap: anywhere; }
 .zen-notes-pdf-card, .zen-notes-pdf-card * { text-decoration: none !important; }
-.zen-notes-file-icon { display: block; width: 24px; height: 28px; flex: 0 0 24px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.zen-notes-file-icon { display: inline-block; width: 24px; height: 24px; flex: 0 0 24px; background-color: currentColor; mask-repeat: no-repeat; mask-position: center; mask-size: contain; }
 .zen-notes-line.is-image-line:not(.is-editing) { display: inline-flex; vertical-align: top; flex-wrap: wrap; gap: 10px; max-width: 100%; margin: 6px 10px 6px 0; white-space: normal; }
 .zen-notes-image-frame { display: inline-block; position: relative; vertical-align: top; max-width: 100%; flex: 0 1 auto; line-height: 0; }
 .zen-notes-image-frame .zen-notes-image { display: block; width: auto; height: auto; max-height: none; margin: 0; object-fit: contain; }
