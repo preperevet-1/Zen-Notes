@@ -400,7 +400,7 @@
 /* Match Zen's folder palette and native page container tokens. */
 [zen-notes-tab="true"] .tab-icon-image,
 [zen-notes-tab="true"] .tab-icon-image:is(:hover, [selected]) {
-  content: normal !important;
+  content: url("data:image/svg+xml,%3Csvg%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%0A%3Cpath%20d%3D%22M6%2022C5.46957%2022%204.96086%2021.7893%204.58579%2021.4142C4.21071%2021.0391%204%2020.5304%204%2020V4C4%203.46957%204.21071%202.96086%204.58579%202.58579C4.96086%202.21072%205.46957%202%206%202H14C14.3166%201.99949%2014.6301%202.06161%2014.9225%202.18277C15.215%202.30394%2015.4806%202.48176%2015.704%202.706L19.292%206.294C19.5168%206.51751%2019.6952%206.78335%2019.8167%207.07616C19.9382%207.36898%2020.0005%207.68297%2020%208V20C20%2020.5304%2019.7893%2021.0391%2019.4142%2021.4142C19.0391%2021.7893%2018.5304%2022%2018%2022H6Z%22%20fill%3D%22context-fill%22%2F%3E%0A%3Cpath%20d%3D%22M15.6443%203.50091C16.6399%204.43015%2017.7732%205.52444%2018.6889%206.49206C19.2553%207.09058%2018.824%208%2018%208H15C14.4477%208%2014%207.55228%2014%207V4.22684C14%203.36399%2015.0136%202.91214%2015.6443%203.50091Z%22%20fill%3D%22context-stroke%22%20fill-opacity%3D%220.55%22%2F%3E%0A%3Cpath%20d%3D%22M3%2020V4C3%203.20435%203.3163%202.44151%203.87891%201.87891C4.44152%201.3163%205.20435%201%206%201H14V1.00098C14.4479%201.00046%2014.8919%201.08734%2015.3057%201.25879C15.7193%201.43022%2016.0949%201.68198%2016.4111%201.99902L19.9971%205.58496L20.1133%205.70605C20.3773%205.99585%2020.5896%206.32951%2020.7402%206.69238C20.9122%207.1067%2021.0005%207.55143%2021%208V20C21%2020.7956%2020.6837%2021.5585%2020.1211%2022.1211C19.5585%2022.6837%2018.7957%2023%2018%2023H6C5.20435%2023%204.44152%2022.6837%203.87891%2022.1211C3.3163%2021.5585%203%2020.7956%203%2020ZM5%2020C5%2020.2652%205.10543%2020.5195%205.29297%2020.707C5.48051%2020.8946%205.73478%2021%206%2021H18C18.2652%2021%2018.5195%2020.8946%2018.707%2020.707C18.8946%2020.5195%2019%2020.2652%2019%2020V7.99805C19.0003%207.81344%2018.9642%207.6305%2018.8936%207.45996C18.8227%207.28915%2018.7181%207.13331%2018.5869%207.00293L14.9961%203.41211C14.8658%203.28135%2014.7106%203.17712%2014.54%203.10645C14.3695%203.03581%2014.1865%202.99974%2014.002%203H6C5.73478%203%205.4805%203.10543%205.29297%203.29297C5.10543%203.4805%205%203.73478%205%204V20Z%22%20fill%3D%22context-stroke%22%2F%3E%0A%3Cpath%20d%3D%22M14%202V7C14%207.26522%2014.1054%207.51957%2014.2929%207.70711C14.4804%207.89464%2014.7348%208%2015%208H20M15%208H20%22%20stroke%3D%22context-stroke%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%0A%3C%2Fsvg%3E%0A") !important;
   -moz-context-properties: fill, stroke !important;
   fill: var(--zen-folder-front-bgcolor, light-dark(color-mix(in srgb, var(--zen-primary-color, #8b9ac0), white 70%), color-mix(in srgb, var(--zen-primary-color, #8b9ac0), black 40%))) !important;
   stroke: var(--zen-folder-stroke, light-dark(color-mix(in srgb, var(--zen-primary-color, #8b9ac0) 50%, black), color-mix(in srgb, var(--zen-colors-primary, #8b9ac0) 15%, #ebebeb))) !important;
@@ -454,6 +454,14 @@
 
 :is(#zen-notes-editor, .zen-notes-preview-editor) > .is-quote { background: color-mix(in srgb, var(--zen-notes-accent) 12%, var(--zen-notes-page-bg)); color: var(--zen-notes-page-fg); }
 [zen-notes-tab="true"] .tab-icon-image { width: 19px !important; height: 19px !important; }
+[zen-notes-tab="true"] :is(.tab-throbber, .tab-icon-pending) { display: none !important; }
+[zen-notes-tab="true"] .tab-icon-image {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  animation: none !important;
+  transition: none !important;
+}
 
 /* Separate Markdown paragraphs; soft breaks retain the normal line height. */
 .zen-notes-line:empty { min-height: .85em; }
