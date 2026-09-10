@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.14.9-alpha";
+  const VERSION = "0.14.10-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const NOTE_ICON_SVG = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M6 22C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V4C4 3.46957 4.21071 2.96086 4.58579 2.58579C4.96086 2.21072 5.46957 2 6 2H14C14.3166 1.99949 14.6301 2.06161 14.9225 2.18277C15.215 2.30394 15.4806 2.48176 15.704 2.706L19.292 6.294C19.5168 6.51751 19.6952 6.78335 19.8167 7.07616C19.9382 7.36898 20.0005 7.68297 20 8V20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22H6Z\" fill=\"context-fill\"/>\n<path d=\"M15.6443 3.50091C16.6399 4.43015 17.7732 5.52444 18.6889 6.49206C19.2553 7.09058 18.824 8 18 8H15C14.4477 8 14 7.55228 14 7V4.22684C14 3.36399 15.0136 2.91214 15.6443 3.50091Z\" fill=\"context-stroke\" fill-opacity=\"0.55\"/>\n<path d=\"M3 20V4C3 3.20435 3.3163 2.44151 3.87891 1.87891C4.44152 1.3163 5.20435 1 6 1H14V1.00098C14.4479 1.00046 14.8919 1.08734 15.3057 1.25879C15.7193 1.43022 16.0949 1.68198 16.4111 1.99902L19.9971 5.58496L20.1133 5.70605C20.3773 5.99585 20.5896 6.32951 20.7402 6.69238C20.9122 7.1067 21.0005 7.55143 21 8V20C21 20.7956 20.6837 21.5585 20.1211 22.1211C19.5585 22.6837 18.7957 23 18 23H6C5.20435 23 4.44152 22.6837 3.87891 22.1211C3.3163 21.5585 3 20.7956 3 20ZM5 20C5 20.2652 5.10543 20.5195 5.29297 20.707C5.48051 20.8946 5.73478 21 6 21H18C18.2652 21 18.5195 20.8946 18.707 20.707C18.8946 20.5195 19 20.2652 19 20V7.99805C19.0003 7.81344 18.9642 7.6305 18.8936 7.45996C18.8227 7.28915 18.7181 7.13331 18.5869 7.00293L14.9961 3.41211C14.8658 3.28135 14.7106 3.17712 14.54 3.10645C14.3695 3.03581 14.1865 2.99974 14.002 3H6C5.73478 3 5.4805 3.10543 5.29297 3.29297C5.10543 3.4805 5 3.73478 5 4V20Z\" fill=\"context-stroke\"/>\n<path d=\"M14 2V7C14 7.26522 14.1054 7.51957 14.2929 7.70711C14.4804 7.89464 14.7348 8 15 8H20M15 8H20\" stroke=\"context-stroke\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n</svg>\n";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
@@ -539,7 +539,7 @@
 
     _imagePointer(event) {
       const frame = event.target.closest?.(".zen-notes-image-frame");
-      if (!frame || event.button !== 0) return;
+      if (!frame || event.button !== 0 || event.target.closest?.(".zen-notes-table-cell")) return;
       const imageLine = frame.closest(".zen-notes-line");
       if (imageLine) imageLine._suppressMouseFocusUntil = Date.now() + 1000;
       event.preventDefault(); event.stopImmediatePropagation();
@@ -815,9 +815,9 @@
         try {
           this.currentNoteId = id;
           for (const raw of data.body.split("\n")) {
-            const line = this._makeLine(raw); this._renderLine(line);
-            const copy = line.cloneNode(true); copy.removeAttribute("contenteditable"); body.append(copy);
+            const line = this._makeLine(raw); line.removeAttribute("contenteditable"); body.append(line);
           }
+          this._renderAllLines(body);
         } finally { this.currentNoteId = previous; }
         scroll.append(canvas); preview.append(scroll, this._noteFooter(note)); this._applyBoost(preview, id);
         preview.addEventListener("pointerdown", event => { event.preventDefault(); this._openLinkedNote(id); this._syncSelectedTab().catch(console.error); });
@@ -936,6 +936,7 @@
         if (event.inputType === "historyUndo" || event.inputType === "historyRedo") {
           event.preventDefault(); this._undo(event.inputType === "historyRedo"); return;
         }
+        if (event.target.closest?.(".zen-notes-table-cell")) return;
         const selected = this._bodySelection();
         const range = window.getSelection().rangeCount ? window.getSelection().getRangeAt(0) : null;
         if (!selected || !range) return;
@@ -1112,6 +1113,11 @@
     }
 
     _onLinePointerDown(event, line) {
+      if (event.target.closest?.(".zen-notes-table-wrap")) return;
+      if (event.button === 0 && line.classList.contains("is-empty-code")) {
+        event.preventDefault(); event.stopPropagation(); this._recordHistory();
+        const blank = this._makeLine(""); line.after(blank); this._renderAllLines(); this._focusLine(blank, 0); this._queueSave(); return;
+      }
       if (event.button === 0) this._endWholeSelection();
       if (event.button !== 0) {
         // Cancel the focus default without cancelling the subsequent contextmenu.
@@ -1210,6 +1216,7 @@
     }
 
     _prepareVisualSelection() {
+      if (this._activeCell) this._commitTableCell(this._activeCell);
       const editor = document.getElementById("zen-notes-editor");
       for (const line of editor.children) {
         if (line.classList.contains("is-editing")) this._commitLine(line);
@@ -1285,7 +1292,7 @@
     }
 
     _activateLine(line) {
-      if (!line) return;
+      if (!line || line.dataset.tableOwner !== undefined) return;
       if (this._activeLine && this._activeLine !== line) this._commitLine(this._activeLine);
       if (this._activeLine === line && line.classList.contains("is-editing")) return;
       const raw = line.dataset.raw ?? "";
@@ -1293,6 +1300,7 @@
       line.classList.add("is-editing");
       this._classifyLine(line, raw, false);
       this._activeLine = line;
+      this._updateCodeEditing();
     }
 
     _commitLine(line) {
@@ -1301,9 +1309,11 @@
       line.classList.remove("is-editing");
       if (this._activeLine === line) this._activeLine = null;
       this._renderLine(line);
+      this._updateCodeEditing();
     }
 
     _commitActiveLine() {
+      if (this._activeCell) this._commitTableCell(this._activeCell);
       if (this._activeLine) this._commitLine(this._activeLine);
     }
 
@@ -1316,42 +1326,291 @@
 ;
     }
 
-    _renderAllLines() {
+    _parseTableRow(raw) {
+      const delimiters = [];
+      for (let i = 0; i < raw.length; i++) if (raw[i] === "|") {
+        let slashes = 0; for (let j = i - 1; j >= 0 && raw[j] === "\\"; j--) slashes++;
+        if (!(slashes % 2)) delimiters.push(i);
+      }
+      if (!delimiters.length) return null;
+      const edges = [-1, ...delimiters, raw.length], cells = [];
+      for (let i = 1; i < edges.length; i++) {
+        const from = edges[i - 1] + 1, to = edges[i], part = raw.slice(from, to);
+        if ((i === 1 || i === edges.length - 1) && !part.trim()) continue;
+        const start = from + (part.match(/^\s*/)?.[0].length || 0), value = part.trim();
+        cells.push({ value, start: Math.min(start, to), end: Math.min(start, to) + value.length });
+      }
+      return cells.length ? cells : null;
+    }
+
+    _tableModel(raws, start) {
+      const header = this._parseTableRow(raws[start] || ""), divider = this._parseTableRow(raws[start + 1] || "");
+      if (!header || !divider || header.length !== divider.length || !divider.every(cell => /^:?-{2,}:?$/.test(cell.value))) return null;
+      const rows = [header.map(c => c.value)], sourceRows = [0];
+      let end = start + 1, columns = header.length;
+      for (let i = start + 2; i < raws.length; i++) {
+        const row = this._parseTableRow(raws[i]); if (!row) break;
+        rows.push(row.map(c => c.value)); sourceRows.push(i - start); columns = Math.max(columns, row.length); end = i;
+      }
+      for (const row of rows) while (row.length < columns) row.push("");
+      const align = Array.from({ length: columns }, (_, i) => {
+        const value = divider[i]?.value || "---";
+        return value.startsWith(":") && value.endsWith(":") ? "center" : value.endsWith(":") ? "right" : "left";
+      });
+      return { start, end, rows, sourceRows, align, columns };
+    }
+
+    _serializeTable(model) {
+      const row = cells => "| " + cells.join(" | ") + " |";
+      return [row(model.rows[0]), row(model.align.map(a => a === "center" ? ":---:" : a === "right" ? "---:" : "---")), ...model.rows.slice(1).map(row)].join("\n");
+    }
+
+    _tableAt(start) {
       const editor = document.getElementById("zen-notes-editor");
+      return editor ? this._tableModel(Array.from(editor.children, line => line.dataset.raw || ""), start) : null;
+    }
+
+    _cellDisplay(raw) { return raw.replace(/\\\|/g, "|"); }
+    _cellSource(text) { return text.replace(/\r?\n/g, "<br>").replace(/(?<!\\)\|/g, "\\|"); }
+
+    _renderTable(line, model, interactive = true) {
+      if (this._activeCell && line.contains(this._activeCell)) return;
+      const wrap = this._html("div"); wrap.className = "zen-notes-table-wrap";
+      wrap.setAttribute("contenteditable", "false"); wrap.dataset.tableStart = model.start;
+      const table = this._html("table"), body = this._html("tbody");
+      table.className = "zen-notes-table";
+      model.rows.forEach((row, rowIndex) => {
+        const tr = this._html("tr");
+        row.forEach((raw, column) => {
+          const td = this._html(rowIndex ? "td" : "th"), cell = this._html("div");
+          cell.className = "zen-notes-table-cell"; cell.dataset.tableStart = model.start;
+          cell.dataset.tableRow = model.sourceRows[rowIndex]; cell.dataset.tableColumn = column;
+          cell.dataset.cellRaw = raw; cell.setAttribute("aria-label", `Row ${rowIndex + 1}, column ${column + 1}`);
+          td.style.textAlign = model.align[column];
+          cell.innerHTML = this._inline(this._cellDisplay(raw)).replace(/&lt;br\s*\/?&gt;/g, "<br/>") || "<br/>";
+          if (interactive) {
+            this._setPlainEditable(cell);
+            cell.addEventListener("pointerdown", event => event.stopPropagation());
+            cell.addEventListener("focus", () => this._activateTableCell(cell));
+            cell.addEventListener("beforeinput", () => this._recordHistory());
+            cell.addEventListener("input", event => { event.stopPropagation(); this._storeTableCell(cell); this._queueSave(); });
+            cell.addEventListener("blur", () => window.setTimeout(() => { if (document.activeElement !== cell) this._commitTableCell(cell); }, 0));
+            cell.addEventListener("keyup", event => event.stopPropagation());
+            cell.addEventListener("keydown", event => this._tableCellKeys(event, cell));
+            cell.addEventListener("paste", event => {
+              event.preventDefault(); event.stopPropagation();
+              document.execCommand("insertText", false, event.clipboardData?.getData("text/plain") || "");
+            });
+          }
+          td.append(cell); tr.append(td);
+        });
+        body.append(tr);
+      });
+      table.append(body); wrap.append(table);
+      if (interactive) {
+        for (const [action, label] of [["column-after", "Add column after"], ["row-after", "Add row after"]]) {
+          const button = this._html("button"); button.type = "button";
+          button.className = `zen-notes-table-add ${action.startsWith("column") ? "add-column" : "add-row"}`;
+          button.innerHTML = this._toolbarIcon("plus"); button.title = label; button.setAttribute("aria-label", label);
+          button.addEventListener("pointerdown", event => { event.preventDefault(); event.stopPropagation(); });
+          button.addEventListener("click", event => { event.stopPropagation(); this._tableAction(model.start, model.rows.length - 1, model.columns - 1, action); });
+          wrap.append(button);
+        }
+      }
+      line.replaceChildren(wrap);
+    }
+
+    _activateTableCell(cell) {
+      if (cell.dataset.cellEditing === "true") return;
+      this._endWholeSelection();
+      if (this._activeCell !== cell) this._commitActiveLine();
+      this._activeCell = cell; cell.dataset.cellEditing = "true";
+      cell.textContent = this._cellDisplay(cell.dataset.cellRaw || "");
+    }
+
+    _storeTableCell(cell) {
+      if (!cell?.isConnected || cell.dataset.cellEditing !== "true") return;
+      const start = Number(cell.dataset.tableStart), sourceRow = Number(cell.dataset.tableRow), column = Number(cell.dataset.tableColumn);
+      const editor = document.getElementById("zen-notes-editor"), line = editor?.children[start + sourceRow];
+      if (!line || line.dataset.tableOwner !== String(start)) return;
+      const cells = this._parseTableRow(line.dataset.raw)?.map(c => c.value) || [];
+      while (cells.length <= column) cells.push("");
+      cells[column] = this._cellSource(cell.textContent || "");
+      cell.dataset.cellRaw = cells[column]; line.dataset.raw = "| " + cells.join(" | ") + " |";
+    }
+
+    _commitTableCell(cell) {
+      if (!cell || cell.dataset.cellEditing !== "true") return;
+      this._storeTableCell(cell);
+      delete cell.dataset.cellEditing;
+      cell.innerHTML = this._inline(this._cellDisplay(cell.dataset.cellRaw || "")).replace(/&lt;br\s*\/?&gt;/g, "<br/>") || "<br/>";
+      if (this._activeCell === cell) this._activeCell = null;
+    }
+
+    _focusTableCell(start, sourceRow, column) {
+      const cell = document.getElementById("zen-notes-editor")?.querySelector(`.zen-notes-table-cell[data-table-start="${start}"][data-table-row="${sourceRow}"][data-table-column="${column}"]`);
+      if (!cell) return;
+      this._activateTableCell(cell);
+      cell.focus({ preventScroll: true });
+      const range = document.createRange(); range.selectNodeContents(cell); range.collapse(false);
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+    }
+
+    _tableCellKeys(event, cell) {
+      event.stopPropagation();
+      if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
+      const start = Number(cell.dataset.tableStart), column = Number(cell.dataset.tableColumn), model = this._tableAt(start);
+      if (!model) return;
+      const row = model.sourceRows.indexOf(Number(cell.dataset.tableRow));
+      if (event.key === "Escape") { event.preventDefault(); cell.blur(); return; }
+      if (!["Tab", "Enter"].includes(event.key)) return;
+      event.preventDefault();
+      if (event.key === "Enter" && event.shiftKey) { document.execCommand("insertText", false, "<br>"); return; }
+      this._commitTableCell(cell);
+      let nextRow = row, nextColumn = column;
+      if (event.key === "Tab") {
+        nextColumn += event.shiftKey ? -1 : 1;
+        if (nextColumn < 0) { nextColumn = model.columns - 1; nextRow--; }
+        if (nextColumn >= model.columns) { nextColumn = 0; nextRow++; }
+      } else nextRow++;
+      if (nextRow >= model.rows.length) {
+        this._tableAction(start, row, column, "row-after", { row: nextRow, column: nextColumn }); return;
+      }
+      if (nextRow < 0) { this._focusTableCell(start, 0, 0); return; }
+      this._focusTableCell(start, model.sourceRows[nextRow], nextColumn);
+    }
+
+    _mutateTable(model, row, column, action) {
+      row = Math.max(0, Math.min(model.rows.length - 1, row)); column = Math.max(0, Math.min(model.columns - 1, column));
+      if (action.startsWith("column-") && ["column-before", "column-after"].includes(action)) {
+        const at = column + (action.endsWith("after") ? 1 : 0);
+        model.rows.forEach(cells => cells.splice(at, 0, "")); model.align.splice(at, 0, "left"); model.columns++; return { row, column: at };
+      }
+      if (["row-before", "row-after"].includes(action)) {
+        const at = Math.max(1, row + (action.endsWith("after") ? 1 : 0));
+        model.rows.splice(at, 0, Array(model.columns).fill("")); return { row: at, column };
+      }
+      if (action === "delete-column" && model.columns > 1) { model.rows.forEach(cells => cells.splice(column, 1)); model.align.splice(column, 1); model.columns--; }
+      if (action === "delete-row" && row > 0) model.rows.splice(row, 1);
+      if (action === "move-row-up" && row > 1) { [model.rows[row - 1], model.rows[row]] = [model.rows[row], model.rows[row - 1]]; row--; }
+      if (action === "move-row-down" && row > 0 && row < model.rows.length - 1) { [model.rows[row + 1], model.rows[row]] = [model.rows[row], model.rows[row + 1]]; row++; }
+      if (action === "move-column-left" || action === "move-column-right") {
+        const next = column + (action.endsWith("left") ? -1 : 1);
+        if (next >= 0 && next < model.columns) {
+          model.rows.forEach(cells => { [cells[column], cells[next]] = [cells[next], cells[column]]; });
+          [model.align[column], model.align[next]] = [model.align[next], model.align[column]]; column = next;
+        }
+      }
+      if (action.startsWith("align-")) model.align[column] = action.slice(6);
+      if (action.startsWith("sort-")) {
+        const direction = action.endsWith("ascending") ? 1 : -1;
+        model.rows = [model.rows[0], ...model.rows.slice(1).sort((a, b) => direction * this._cellDisplay(a[column]).localeCompare(this._cellDisplay(b[column]), undefined, { numeric: true }))];
+      }
+      return { row: Math.min(row, model.rows.length - 1), column: Math.min(column, model.columns - 1) };
+    }
+
+    _tableAction(start, row, column, action, focus = null) {
+      this._commitActiveLine();
+      const model = this._tableAt(start); if (!model) return;
+      this._recordHistory();
+      const body = this._editorMarkdown().split("\n");
+      const position = this._mutateTable(model, row, column, action);
+      body.splice(start, model.end - start + 1, ...(action === "delete-table" ? [""] : this._serializeTable(model).split("\n")));
+      this._setBody(body.join("\n")); this._queueSave();
+      if (action !== "delete-table") {
+        const target = focus || position;
+        this._focusTableCell(start, target.row === 0 ? 0 : target.row + 1, target.column);
+      }
+    }
+
+    _tableContextMenu(popup, cell) {
+      const start = Number(cell.dataset.tableStart), column = Number(cell.dataset.tableColumn), model = this._tableAt(start);
+      if (!model) return false;
+      const row = model.sourceRows.indexOf(Number(cell.dataset.tableRow));
+      const entries = [["Add Row Above", "row-before"], ["Add Row Below", "row-after"], ["Add Column Before", "column-before"], ["Add Column After", "column-after"], null,
+        ["Move Row Up", "move-row-up"], ["Move Row Down", "move-row-down"], ["Move Column Left", "move-column-left"], ["Move Column Right", "move-column-right"], null,
+        ["Align Left", "align-left"], ["Align Center", "align-center"], ["Align Right", "align-right"], ["Sort Ascending", "sort-ascending"], ["Sort Descending", "sort-descending"], null,
+        ["Delete Row", "delete-row"], ["Delete Column", "delete-column"], ["Delete Table", "delete-table"]];
+      for (const entry of entries) {
+        if (!entry) { popup.append(document.createXULElement("menuseparator")); continue; }
+        const [label, action] = entry, item = this._menuItem(label, () => this._tableAction(start, row, column, action));
+        item.disabled = (action === "delete-row" && row === 0) || (action === "row-before" && row === 0) || (action === "delete-column" && model.columns === 1) || (action === "move-row-up" && row <= 1) || (action === "move-row-down" && (row === 0 || row === model.rows.length - 1)) || (action === "move-column-left" && column === 0) || (action === "move-column-right" && column === model.columns - 1);
+        if (action.startsWith("align-")) { item.setAttribute("type", "radio"); item.setAttribute("checked", String(model.align[column] === action.slice(6))); }
+        popup.append(item);
+      }
+      return true;
+    }
+
+    _codeGroups(raws) {
+      const groups = []; let open = null;
+      raws.forEach((raw, index) => {
+        if (!open) {
+          const match = raw.match(/^\s{0,3}(`{3,}|~{3,})([^`]*)$/);
+          if (match) open = { start: index, marker: match[1][0], length: match[1].length, language: match[2].trim() };
+        } else if (new RegExp(`^\\s{0,3}${open.marker}{${open.length},}\\s*$`).test(raw)) {
+          groups.push({ ...open, end: index, closed: true }); open = null;
+        }
+      });
+      if (open) groups.push({ ...open, end: raws.length - 1, closed: false });
+      return groups;
+    }
+
+    _renderAllLines(editor = document.getElementById("zen-notes-editor")) {
       if (!editor) return;
-      let insideFence = false, insideMath = false;
-      const tableLines = Array.from(editor.children);
-      for (let i = 0; i < tableLines.length; i++) {
-        const line = tableLines[i], raw = line.dataset.raw || "";
-        const row = /^\s*\|.*\|\s*$/.test(raw);
-        const separator = row && raw.trim().slice(1, -1).split("|").every(cell => /^\s*:?-{3,}:?\s*$/.test(cell));
-        line.classList.toggle("is-table-row", row);
-        line.classList.toggle("is-table-divider", separator);
-        const quote = /^>\s?/.test(raw);
-        line.classList.toggle("is-quote-start", quote && !/^>\s?/.test(tableLines[i - 1]?.dataset.raw || ""));
-        line.classList.toggle("is-quote-end", quote && !/^>\s?/.test(tableLines[i + 1]?.dataset.raw || ""));
-        const prev = tableLines[i - 1];
-        line.classList.toggle("is-table-start", row && (!prev || !/^\s*\|.*\|\s*$/.test(prev.dataset.raw || "")));
+      const lines = Array.from(editor.children), raws = lines.map(line => line.dataset.raw || "");
+      const groups = this._codeGroups(raws), codes = new Map();
+      for (const group of groups) for (let i = group.start; i <= group.end; i++) codes.set(i, group);
+      const tables = [];
+      for (let i = 0; i < lines.length; i++) {
+        if (codes.has(i)) continue;
+        const model = this._tableModel(raws, i);
+        if (model) { tables.push(model); i = model.end; }
       }
-      for (const line of editor.querySelectorAll(":scope > .zen-notes-line")) {
-        const raw = line.dataset.raw ?? "";
-        const fence = /^\s*```/.test(raw);
-        line.dataset.codeBlock = insideFence || fence ? "true" : "false";
-        line.dataset.mathBlock = !insideFence && (insideMath || raw.trim() === "$$") ? "true" : "false";
-        this._renderLine(line, insideFence);
-        if (!insideFence && raw.trim() === "$$") insideMath = !insideMath;
-        if (insideFence || fence) line.classList.remove("is-table-row", "is-table-divider", "is-table-start");
-        if (fence) insideFence = !insideFence;
+      let insideMath = false;
+      lines.forEach((line, i) => {
+        for (const name of ["tableOwner", "codeStart", "codeEnd", "codeFence"]) delete line.dataset[name];
+        line.classList.remove("is-table-host", "is-table-continuation", "is-table-row", "is-table-divider", "is-table-start", "is-code-top", "is-code-bottom", "is-empty-code", "is-code-editing");
+        const group = codes.get(i), fence = group && (i === group.start || (group.closed && i === group.end));
+        line.dataset.codeBlock = group ? "true" : "false";
+        if (group) {
+          line.dataset.codeStart = String(group.start); line.dataset.codeEnd = String(group.end);
+          line.dataset.codeFence = fence ? "true" : "false";
+          const empty = group.closed && group.end === group.start + 1;
+          line.classList.toggle("is-empty-code", empty && i === group.start);
+          line.classList.toggle("is-code-top", i === group.start + 1 && !empty);
+          line.classList.toggle("is-code-bottom", i === group.end - (group.closed ? 1 : 0) && !empty);
+        }
+        line.dataset.mathBlock = !group && (insideMath || raws[i].trim() === "$$") ? "true" : "false";
+        if (!group && raws[i].trim() === "$$") insideMath = !insideMath;
+        const quote = !group && /^>\s?/.test(raws[i]);
+        line.classList.toggle("is-quote-start", quote && !/^>\s?/.test(raws[i - 1] || ""));
+        line.classList.toggle("is-quote-end", quote && !/^>\s?/.test(raws[i + 1] || ""));
+      });
+      for (const model of tables) for (let i = model.start; i <= model.end; i++) {
+        lines[i].classList.remove("is-code", "is-fence");
+        lines[i].dataset.tableOwner = String(model.start);
+        lines[i].classList.add(i === model.start ? "is-table-host" : "is-table-continuation");
+        lines[i].setAttribute("contenteditable", "false");
       }
+      lines.forEach(line => this._renderLine(line));
+      for (const model of tables) this._renderTable(lines[model.start], model, editor.id === "zen-notes-editor");
+      this._updateCodeEditing(editor);
       this._updatePlaceholder();
     }
 
+    _updateCodeEditing(editor = document.getElementById("zen-notes-editor")) {
+      if (!editor) return;
+      const start = this._activeLine?.dataset.codeStart;
+      for (const line of editor.children) line.classList.toggle("is-code-editing", start !== undefined && line.dataset.codeStart === start && editor.contains(this._activeLine));
+    }
+
     _renderLine(line, forceCode = null) {
-      if (!line || line.classList.contains("is-editing")) return;
+      if (!line || line.classList.contains("is-editing") || line.dataset.tableOwner !== undefined) return;
       const raw = line.dataset.raw ?? "";
-      const isFence = /^\s*```/.test(raw);
+      const isFence = line.dataset.codeFence === "true";
       const isCode = isFence || forceCode === true || (forceCode === null && line.dataset.codeBlock === "true");
       this._classifyLine(line, raw, isCode);
+      line.classList.toggle("is-fence", isFence);
       line.classList.toggle("zen-notes-image-row", !isCode && this._imageMatches(raw).length > 1);
       line.classList.toggle("is-image-line", !isCode && this._imageMatches(raw).length > 0 && !raw.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "").trim());
       line.spellcheck = false;
@@ -1532,6 +1791,7 @@
     }
 
     _onLineKeyDown(event, line) {
+      if (event.target.closest?.(".zen-notes-table-cell")) return;
       // This is the critical fix for Zen stealing arrows / printable keys and
       // sending focus to the URL/search field while a note is being edited.
       event.stopPropagation();
@@ -1665,6 +1925,12 @@
 
     _focusLine(line, offset = 0) {
       if (!line) return;
+      if (line.dataset.tableOwner !== undefined) {
+        const editor = line.parentElement, start = Number(line.dataset.tableOwner), row = Array.from(editor.children).indexOf(line) - start;
+        const parts = this._parseTableRow(line.dataset.raw || "") || [];
+        const column = Math.max(0, parts.findIndex(part => offset <= part.end));
+        this._focusTableCell(start, row === 1 ? 0 : row, column); return;
+      }
       this._activateLine(line);
       line.focus();
       this._setCaret(line, offset);
@@ -2367,6 +2633,7 @@ function run(argv) {
     }
 
     _setBody(body) {
+      this._activeCell = null;
       this._endWholeSelection();
       this._activeLine = null;
       const editor = document.getElementById("zen-notes-editor");
@@ -2379,7 +2646,7 @@ function run(argv) {
       const editor = document.getElementById("zen-notes-editor");
       if (!editor?.hasAttribute?.("contenteditable")) return;
       editor.removeAttribute("contenteditable");
-      for (const line of editor.children) this._setPlainEditable(line);
+      for (const line of editor.children) { if (line.dataset.tableOwner === undefined) this._setPlainEditable(line); }
     }
 
     _selectAll() {
@@ -2399,6 +2666,21 @@ function run(argv) {
       const lines = Array.from(editor.children);
       const offset = (node, position, end = false) => {
         if (node === editor) return lines.slice(0, position).reduce((n, l) => n + (l.dataset.raw || "").length + 1, 0);
+        const element = node.nodeType === 1 ? node : node.parentElement;
+        const cell = element.closest(".zen-notes-table-cell");
+        if (cell) {
+          const rowIndex = Number(cell.dataset.tableStart) + Number(cell.dataset.tableRow), column = Number(cell.dataset.tableColumn);
+          const parts = this._parseTableRow(lines[rowIndex]?.dataset.raw || ""), part = parts?.[column];
+          if (part) {
+            const r = document.createRange(); r.selectNodeContents(cell); r.setEnd(node, position);
+            const raw = part.value, decoded = this._cellDisplay(raw);
+            const visible = r.toString().length;
+            const local = cell.dataset.cellEditing === "true" ? visible : this._visibleOffsetToRaw(decoded, visible, end);
+            const offsets = []; for (let i = 0; i < raw.length; i++) { if (raw[i] === "\\" && raw[i + 1] === "|") i++; offsets.push(i); }
+            const mapped = end && local > 0 ? (offsets[local - 1] ?? raw.length - 1) + 1 : offsets[local] ?? raw.length;
+            return lines.slice(0, rowIndex).reduce((sum, line) => sum + (line.dataset.raw || "").length + 1, 0) + part.start + mapped;
+          }
+        }
         const line = (node.nodeType === 1 ? node : node.parentElement).closest(".zen-notes-line");
         const index = lines.indexOf(line);
         if (index < 0) return 0;
@@ -2426,8 +2708,73 @@ function run(argv) {
       this._queueSave();
     }
 
+    _formatSpans(raw) {
+      const spans = [];
+      const scan = (part, base) => {
+        for (let i = 0; i < part.length;) {
+          const rest = part.slice(i), code = rest.match(/^`+[^`]*`+/);
+          if (code) { i += code[0].length; continue; }
+          const color = rest.match(/^<span style="([^"]+)">([\s\S]*?)<\/span>/);
+          if (color && this._safeColorStyle(color[1])) {
+            const open = color[0].slice(0, color[0].indexOf(">") + 1), close = "</span>";
+            spans.push({ action: "color", start: base + i, end: base + i + color[0].length, contentStart: base + i + open.length, contentEnd: base + i + color[0].length - close.length, open, close });
+            scan(color[2], base + i + open.length); i += color[0].length; continue;
+          }
+          const pair = rest.match(/^(\*\*|__|~~|\*|_)([^\n]+?)\1/);
+          const underline = rest.match(/^<u>([\s\S]*?)<\/u>/);
+          if (pair || underline) {
+            const full = (pair || underline)[0], open = pair ? pair[1] : "<u>", close = pair ? pair[1] : "</u>", text = pair ? pair[2] : underline[1];
+            const action = { "**": "bold", "__": "bold", "*": "italic", "_": "italic", "~~": "strike", "<u>": "underline" }[open];
+            spans.push({ action, start: base + i, end: base + i + full.length, contentStart: base + i + open.length, contentEnd: base + i + full.length - close.length, open, close });
+            scan(text, base + i + open.length); i += full.length; continue;
+          }
+          const link = rest.match(/^!?\[([^\]]*)\]\([^)]*\)/);
+          if (link) { if (!rest.startsWith("!")) scan(link[1], base + i + 1); i += link[0].length; continue; }
+          const tag = rest.match(/^<[^>]+>/);
+          if (tag) { i += tag[0].length; continue; }
+          if (rest.startsWith("\\")) i++;
+          i++;
+        }
+      };
+      scan(raw, 0); return spans;
+    }
+
+    _formatState(selection) {
+      if (!selection || selection.start === selection.end) return {};
+      const body = this._editorMarkdown(), spans = this._formatSpans(body), positions = [];
+      let base = 0;
+      for (const line of body.split("\n")) {
+        const map = this._displayMap(line);
+        map.offsets.forEach((offset, i) => { if (!/\s/.test(map.text[i]) && base + offset >= selection.start && base + offset < selection.end) positions.push(base + offset); });
+        base += line.length + 1;
+      }
+      return Object.fromEntries(["bold", "italic", "underline", "strike"].map(action => {
+        const covered = positions.filter(position => spans.some(span => span.action === action && position >= span.contentStart && position < span.contentEnd)).length;
+        return [action, positions.length && covered === positions.length ? true : covered ? "mixed" : false];
+      }));
+    }
+
+    _removeActiveFormat(action, selection) {
+      const body = this._editorMarkdown();
+      const span = this._formatSpans(body).find(span => span.action === action && span.contentStart <= selection.start && span.contentEnd >= selection.end);
+      if (!span) return false;
+      const nested = this._formatSpans(body).filter(item => item !== span && item.start >= span.contentStart && item.end <= span.contentEnd);
+      const activeAt = position => nested.filter(item => item.contentStart <= position && item.contentEnd >= position).sort((a, b) => a.start - b.start);
+      const starts = activeAt(selection.start), ends = activeAt(selection.end);
+      const before = body.slice(span.contentStart, selection.start) + [...starts].reverse().map(item => item.close).join("");
+      const selected = starts.map(item => item.open).join("") + body.slice(selection.start, selection.end) + [...ends].reverse().map(item => item.close).join("");
+      const after = ends.map(item => item.open).join("") + body.slice(selection.end, span.contentEnd);
+      const visible = text => this._visibleTextForRaw(text).trim();
+      const wrap = text => visible(text) ? span.open + text + span.close : text;
+      const whole = !visible(before) && !visible(after);
+      const value = whole ? body.slice(span.contentStart, span.contentEnd) : wrap(before) + selected + wrap(after);
+      this._replaceBodySelection(value, { start: span.start, end: span.end });
+      this._finishVisualEdit(); return true;
+    }
+
     _format(action, selection = this._bodySelection()) {
       if (!selection) return;
+      if (this._formatState(selection)[action] === true && this._removeActiveFormat(action, selection)) return;
       let selected = this._editorMarkdown().slice(selection.start, selection.end);
       const note = this._getNote(this.currentNoteId);
       if (action === "clear") {
@@ -2573,8 +2920,14 @@ function run(argv) {
         rest -= candidate.dataset.raw.length + 1;
       }
       if (line) {
-        const content = line.querySelector(".zen-notes-list-content") || line;
-        const offset = this._lineDisplayMap(line).offsets.filter(value => value < rest).length;
+        let content = line.querySelector(".zen-notes-list-content") || line;
+        let offset = this._lineDisplayMap(line).offsets.filter(value => value < rest).length;
+        if (line.dataset.tableOwner !== undefined) {
+          const start = Number(line.dataset.tableOwner), row = Array.from(editor.children).indexOf(line) - start, parts = this._parseTableRow(line.dataset.raw) || [];
+          const column = Math.max(0, parts.findIndex(part => rest <= part.end));
+          content = editor.querySelector(`.zen-notes-table-cell[data-table-start="${start}"][data-table-row="${row === 1 ? 0 : row}"][data-table-column="${column}"]`) || content;
+          offset = this._displayMap(parts[column]?.value || "").offsets.filter(value => value < rest - (parts[column]?.start || 0)).length;
+        }
         const point = this._textPoint(content, offset), range = document.createRange();
         range.setStart(point.node, point.offset); range.collapse(true);
         const selected = window.getSelection(); selected.removeAllRanges(); selected.addRange(range);
@@ -2587,6 +2940,14 @@ function run(argv) {
       if (toolbar) toolbar.hidden = true;
     }
 
+    // Lucide v1.8.0, ISC license; SVG paths bundled locally, no runtime request.
+    _toolbarIcon(action) {
+      const paths = {"bold": "<path d=\"M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8\"/>", "italic": "<line x1=\"19\" x2=\"10\" y1=\"4\" y2=\"4\"/><line x1=\"14\" x2=\"5\" y1=\"20\" y2=\"20\"/><line x1=\"15\" x2=\"9\" y1=\"4\" y2=\"20\"/>", "underline": "<path d=\"M6 4v6a6 6 0 0 0 12 0V4\"/><line x1=\"4\" x2=\"20\" y1=\"20\" y2=\"20\"/>", "strikethrough": "<path d=\"M16 4H9a3 3 0 0 0-2.83 4\"/><path d=\"M14 12a4 4 0 0 1 0 8H6\"/><line x1=\"4\" x2=\"20\" y1=\"12\" y2=\"12\"/>", "type": "<path d=\"M12 4v16\"/><path d=\"M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2\"/><path d=\"M9 20h6\"/>", "chevron-down": "<path d=\"m6 9 6 6 6-6\"/>", "plus": "<path d=\"M5 12h14\"/><path d=\"M12 5v14\"/>"};
+      const name = { paragraph: "type", strike: "strikethrough" }[action] || action;
+      const svg = key => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">${paths[key] || ""}</svg>`;
+      return svg(name) + (action === "paragraph" ? svg("chevron-down") : "");
+    }
+
     _updateSelectionToolbar() {
       const page = document.getElementById("zen-notes-page"), selection = window.getSelection();
       const selected = this._bodySelection();
@@ -2596,10 +2957,10 @@ function run(argv) {
         toolbar = this._html("div"); toolbar.id = "zen-notes-selection-toolbar";
         toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Format selection");
         toolbar.addEventListener("pointerdown", event => event.preventDefault());
-        for (const [label, action, title] of [["Aa ▾", "paragraph", "Paragraph style"], ["B", "bold", "Bold"], ["I", "italic", "Italic"], ["U", "underline", "Underline"], ["S", "strike", "Strikethrough"], ["", "link", "Add link"]]) {
+        for (const [action, title] of [["paragraph", "Paragraph style"], ["bold", "Bold"], ["italic", "Italic"], ["underline", "Underline"], ["strike", "Strikethrough"]]) {
           const button = this._html("button"); button.type = "button";
-          button.textContent = label; button.dataset.action = action;
-          if (action === "link") button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 13 4-4m-6 6-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 2 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" transform="translate(1 1)"/></svg>';
+          button.dataset.action = action;
+          button.innerHTML = this._toolbarIcon(action);
           button.title = title; button.setAttribute("aria-label", title);
           button.addEventListener("click", () => {
             if (toolbar._noteId !== this.currentNoteId) return;
@@ -2618,6 +2979,10 @@ function run(argv) {
         page.append(toolbar);
       }
       toolbar._selection = { ...selected }; toolbar._noteId = this.currentNoteId;
+      const active = this._formatState(selected);
+      for (const button of toolbar.querySelectorAll("button[data-action]")) {
+        if (button.dataset.action !== "paragraph") button.setAttribute("aria-pressed", String(active[button.dataset.action] || false));
+      }
       const rect = selection.getRangeAt(0).getBoundingClientRect(), bounds = page.getBoundingClientRect();
       if (rect.bottom < bounds.top || rect.top > bounds.bottom) { toolbar.hidden = true; return; }
       toolbar.hidden = false;
@@ -2676,13 +3041,16 @@ function run(argv) {
         this._setBody(body.slice(0, selection.start) + selected + `[^${n}]` + body.slice(selection.end) + `\n\n[^${n}]: Footnote`);
         this._queueSave(); this._hideSelectionToolbar(); return;
       }
-      const templates = { table: "| Column 1 | Column 2 |\n| --- | --- |\n|  |  |", callout: "> [!note]\n> " + (selected || "Note"),
+      const templates = { table: "|  |  |\n| --- | --- |\n|  |  |", callout: "> [!note]\n> " + (selected || "Note"),
         rule: "---", codeblock: "```\n" + selected + "\n```", mathblock: "$$\n" + (selected || "x = y") + "\n$$" };
       if (!(action in templates)) return;
       const prefix = selection.start > 0 && body[selection.start - 1] !== "\n" ? "\n\n" : "";
       const suffix = selection.end < body.length && body[selection.end] !== "\n" ? "\n\n" : "\n";
       this._replaceBodySelection(prefix + templates[action] + suffix, selection);
-      this._finishVisualEdit();
+      if (action === "table") {
+        const start = (body.slice(0, selection.start) + prefix).split("\n").length - 1;
+        this._commitActiveLine(); this._focusTableCell(start, 0, 0); this._hideSelectionToolbar();
+      } else this._finishVisualEdit();
     }
 
     _editorContextMenu(event) {
@@ -2709,6 +3077,10 @@ function run(argv) {
       this._contextMenuOpen = true;
       popup.addEventListener("popuphidden", () => { this._contextMenuOpen = false; }, { once: true });
       popup.replaceChildren();
+      const tableCell = event.target.closest(".zen-notes-table-cell");
+      if (tableCell && this._tableContextMenu(popup, tableCell)) {
+        popup.openPopupAtScreen(event.screenX, event.screenY, true); return;
+      }
       const frame = event.target.closest(".zen-notes-image-frame");
       if (frame) {
         const line = frame.closest(".zen-notes-line"), index = Number(frame.dataset.imageIndex);
@@ -2752,8 +3124,7 @@ function run(argv) {
       noteLink.disabled = !bodySelection || !noteChoices.children.length;
       noteLink.append(noteChoices);
       const menus = this._editingMenus(bodySelection);
-      popup.prepend(...menus, document.createXULElement("menuseparator"));
-      popup.append(document.createXULElement("menuseparator"));
+      popup.append(document.createXULElement("menuseparator"), ...menus);
       const colors = document.createXULElement("menu"); colors.setAttribute("label", "Colors");
       const colorOptions = document.createXULElement("menupopup");
       colorOptions.append(this._colorMenu("Text Color", "color", bodySelection), this._colorMenu("Background Color", "background-color", bodySelection));

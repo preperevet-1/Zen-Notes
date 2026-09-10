@@ -1,4 +1,4 @@
-/* Zen Notes 0.14.9-alpha — based on 0.14 */
+/* Zen Notes 0.14.10-alpha — based on 0.14 */
 
 /* Native Firefox/Zen document glyph for the Create Note popup entry. */
 #zen-notes-create-menuitem {
@@ -543,3 +543,45 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 .zen-notes-comment { opacity: .55; font-style: italic; }
 .zen-notes-math { font-family: ui-monospace, monospace; }
 .zen-notes-footnote { opacity: .75; }
+
+/* 0.14.10: toolbar uses the current workspace's accent. */
+#zen-notes-selection-toolbar {
+  --notes-toolbar-accent: var(--zen-notes-boost-accent, var(--zen-primary-color, var(--zen-colors-primary, var(--zen-notes-accent))));
+}
+#zen-notes-selection-toolbar button { display: flex; justify-content: center; align-items: center; gap: 3px; }
+#zen-notes-selection-toolbar svg { width: 18px; height: 18px; stroke-width: 2; stroke-linejoin: round; }
+#zen-notes-selection-toolbar [data-action="paragraph"] svg:last-child { width: 12px; height: 12px; }
+#zen-notes-selection-toolbar button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--notes-toolbar-accent) 36%, var(--zen-notes-page-bg));
+  color: var(--zen-notes-page-fg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--notes-toolbar-accent) 65%, transparent);
+}
+#zen-notes-selection-toolbar button[aria-pressed="mixed"] {
+  background: color-mix(in srgb, var(--notes-toolbar-accent) 15%, var(--zen-notes-page-bg));
+}
+/* Fences remain in the Markdown model, but occupy no space in reading view. */
+.zen-notes-line.is-code { margin: 0; border-radius: 0; padding: 0 14px; background: color-mix(in srgb, var(--zen-notes-page-fg) 6%, var(--zen-notes-page-bg)); }
+.zen-notes-line.is-code-top { border-radius: 9px 9px 0 0; padding-top: 12px; margin-top: 8px; }
+.zen-notes-line.is-code-bottom { border-radius: 0 0 9px 9px; padding-bottom: 12px; margin-bottom: 8px; }
+.zen-notes-line.is-code-top.is-code-bottom { border-radius: 9px; }
+.zen-notes-line.is-fence:not(.is-code-editing) { display: none; }
+.zen-notes-line.is-fence.is-empty-code:not(.is-code-editing) { display: block; height: 44px; margin: 8px 0; padding: 0; border-radius: 9px; cursor: text; }
+.zen-notes-line.is-fence.is-empty-code:not(.is-code-editing) > * { visibility: hidden; }
+.zen-notes-line.is-fence.is-code-editing { display: block; margin: 0; border-radius: 0; padding: 4px 14px; }
+.zen-notes-line.is-code-editing.is-code-top,
+.zen-notes-line.is-code-editing.is-code-bottom { border-radius: 0; margin: 0; padding-top: 0; padding-bottom: 0; }
+/* A single semantic table keeps column widths aligned across every row. */
+.zen-notes-line.is-table-continuation { display: none !important; }
+.zen-notes-line.is-table-host { white-space: normal; padding: 0; margin: 12px 0; }
+.zen-notes-table-wrap { position: relative; max-width: 100%; padding: 0 23px 23px 0; overflow-x: auto; }
+.zen-notes-table { width: 100%; border-collapse: collapse; table-layout: fixed; font: inherit; color: inherit; }
+.zen-notes-table :is(th, td) { padding: 0; vertical-align: top; border: 1px solid color-mix(in srgb, var(--zen-notes-page-fg) 18%, transparent); }
+.zen-notes-table th { font-weight: 650; }
+.zen-notes-table-cell { padding: 8px 10px; min-height: 1.55em; outline: none; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.zen-notes-table-cell:focus { background: color-mix(in srgb, var(--zen-primary-color, var(--zen-notes-accent)) 10%, transparent); }
+.zen-notes-table-add { position: absolute; display: flex; align-items: center; justify-content: center; padding: 0; border: 1px solid color-mix(in srgb, var(--zen-notes-page-fg) 18%, transparent); background: transparent; color: color-mix(in srgb, var(--zen-notes-page-fg) 45%, transparent); cursor: pointer; opacity: 0; transition: opacity .1s; }
+.zen-notes-table-wrap:is(:hover, :focus-within) .zen-notes-table-add { opacity: 1; }
+.zen-notes-table-add.add-column { right: 0; top: 0; width: 23px; height: calc(100% - 23px); border-left: 0; }
+.zen-notes-table-add.add-row { left: 0; bottom: 0; height: 23px; width: calc(100% - 23px); border-top: 0; }
+.zen-notes-table-add:hover { background: color-mix(in srgb, var(--zen-primary-color, var(--zen-notes-accent)) 12%, transparent); color: var(--zen-notes-page-fg); }
+.zen-notes-table-add svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
