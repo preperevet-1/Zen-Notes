@@ -1,4 +1,4 @@
-/* Zen Notes 0.14.2-alpha — based on 0.14 */
+/* Zen Notes 0.14.9-alpha — based on 0.14 */
 
 /* Native Firefox/Zen document glyph for the Create Note popup entry. */
 #zen-notes-create-menuitem {
@@ -508,3 +508,38 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 .zen-notes-image-resize { position: absolute; top: 0; right: -3px; bottom: 0; width: 10px; cursor: ew-resize; touch-action: none; }
 .zen-notes-image-resize::after { content: ""; position: absolute; bottom: -3px; right: 0; width: 16px; height: 16px; cursor: nwse-resize; }
 .is-image-line + .zen-notes-line:has(+ .is-image-line):is(:empty, :has(> br:only-child)) { display: none; }
+
+/* Selection controls share the note's colors, including custom Zen Boosts. */
+#zen-notes-editor { position: relative; }
+#zen-notes-editor[data-empty]::before {
+  content: attr(data-placeholder); position: absolute; top: 0; left: 0;
+  color: color-mix(in srgb, var(--zen-notes-page-fg) 42%, transparent);
+  pointer-events: none; font: inherit;
+}
+#zen-notes-selection-toolbar {
+  position: absolute; z-index: 10; display: flex; align-items: center;
+  padding: 4px; gap: 2px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--zen-notes-page-fg) 12%, transparent);
+  background: var(--zen-notes-page-bg); color: var(--zen-notes-page-fg);
+  box-shadow: 0 4px 20px #0002; user-select: none; -moz-user-select: none;
+}
+#zen-notes-selection-toolbar[hidden] { display: none; }
+#zen-notes-selection-toolbar button {
+  appearance: none; display: grid; place-items: center; min-width: 32px; height: 32px;
+  margin: 0; padding: 4px 8px; border: 0; border-radius: 5px;
+  background: transparent; color: inherit; font: 16px system-ui; cursor: pointer;
+}
+#zen-notes-selection-toolbar button:hover,
+#zen-notes-selection-toolbar button:focus-visible {
+  background: color-mix(in srgb, var(--zen-notes-page-fg) 10%, transparent);
+}
+#zen-notes-selection-toolbar [data-action="paragraph"] { font-size: 14px; margin-right: 4px; }
+#zen-notes-selection-toolbar [data-action="bold"] { font-weight: 750; }
+#zen-notes-selection-toolbar [data-action="italic"] { font-style: italic; }
+#zen-notes-selection-toolbar [data-action="underline"] { text-decoration: underline; }
+#zen-notes-selection-toolbar [data-action="strike"] { text-decoration: line-through; }
+#zen-notes-selection-toolbar [data-action="link"] { margin-left: 4px; }
+#zen-notes-selection-toolbar svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.zen-notes-comment { opacity: .55; font-style: italic; }
+.zen-notes-math { font-family: ui-monospace, monospace; }
+.zen-notes-footnote { opacity: .75; }

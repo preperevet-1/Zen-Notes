@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.14.8-alpha";
+  const VERSION = "0.14.9-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const NOTE_ICON_SVG = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M6 22C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V4C4 3.46957 4.21071 2.96086 4.58579 2.58579C4.96086 2.21072 5.46957 2 6 2H14C14.3166 1.99949 14.6301 2.06161 14.9225 2.18277C15.215 2.30394 15.4806 2.48176 15.704 2.706L19.292 6.294C19.5168 6.51751 19.6952 6.78335 19.8167 7.07616C19.9382 7.36898 20.0005 7.68297 20 8V20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22H6Z\" fill=\"context-fill\"/>\n<path d=\"M15.6443 3.50091C16.6399 4.43015 17.7732 5.52444 18.6889 6.49206C19.2553 7.09058 18.824 8 18 8H15C14.4477 8 14 7.55228 14 7V4.22684C14 3.36399 15.0136 2.91214 15.6443 3.50091Z\" fill=\"context-stroke\" fill-opacity=\"0.55\"/>\n<path d=\"M3 20V4C3 3.20435 3.3163 2.44151 3.87891 1.87891C4.44152 1.3163 5.20435 1 6 1H14V1.00098C14.4479 1.00046 14.8919 1.08734 15.3057 1.25879C15.7193 1.43022 16.0949 1.68198 16.4111 1.99902L19.9971 5.58496L20.1133 5.70605C20.3773 5.99585 20.5896 6.32951 20.7402 6.69238C20.9122 7.1067 21.0005 7.55143 21 8V20C21 20.7956 20.6837 21.5585 20.1211 22.1211C19.5585 22.6837 18.7957 23 18 23H6C5.20435 23 4.44152 22.6837 3.87891 22.1211C3.3163 21.5585 3 20.7956 3 20ZM5 20C5 20.2652 5.10543 20.5195 5.29297 20.707C5.48051 20.8946 5.73478 21 6 21H18C18.2652 21 18.5195 20.8946 18.707 20.707C18.8946 20.5195 19 20.2652 19 20V7.99805C19.0003 7.81344 18.9642 7.6305 18.8936 7.45996C18.8227 7.28915 18.7181 7.13331 18.5869 7.00293L14.9961 3.41211C14.8658 3.28135 14.7106 3.17712 14.54 3.10645C14.3695 3.03581 14.1865 2.99974 14.002 3H6C5.73478 3 5.4805 3.10543 5.29297 3.29297C5.10543 3.4805 5 3.73478 5 4V20Z\" fill=\"context-stroke\"/>\n<path d=\"M14 2V7C14 7.26522 14.1054 7.51957 14.2929 7.70711C14.4804 7.89464 14.7348 8 15 8H20M15 8H20\" stroke=\"context-stroke\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n</svg>\n";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
@@ -140,9 +140,14 @@
         this.observer.observe(document.documentElement, { childList: true, subtree: true });
         this.titleObserver = new MutationObserver(records => {
           for (const { target: tab } of records) {
+            if (!tab.classList?.contains("tabbrowser-tab") || tab.closing) continue;
             const note = this._getNote(this._idFromTab(tab));
             if (note?.quick && !tab.closing && tab.hasAttribute("zen-dont-split-glance") && !tab.hasAttribute("zen-glance-tab")) this._promoteQuickNote(note.id).catch(console.error);
-            if (note && tab.getAttribute("image") !== this._filledNoteIcon()) tab.setAttribute("image", this._filledNoteIcon());
+            if (note) {
+              if (tab.getAttribute("zen-notes-tab") !== "true") this._markTab(tab, note);
+              if (tab.getAttribute("image") !== this._filledNoteIcon()) tab.setAttribute("image", this._filledNoteIcon());
+              this._tintTabIcon(tab);
+            }
             const isBeingRenamed = this._nativeRename?.tab === tab || globalThis.gZenVerticalTabsManager?._tabEdited === tab;
             if (note && !isBeingRenamed && tab.getAttribute("label") !== note.title) {
               tab.setAttribute("label", note.title);
@@ -150,8 +155,8 @@
             }
           }
         });
-        this.titleObserver.observe(gBrowser.tabContainer, {
-          attributes: true, subtree: true, attributeFilter: ["label", "image", "pending", "zen-empty-tab", "zen-glance-tab", "zen-dont-split-glance"],
+        this.titleObserver.observe(document.documentElement, {
+          attributes: true, subtree: true, attributeFilter: ["label", "image", "zen-notes-tab", "pending", "zen-empty-tab", "zen-glance-tab", "zen-dont-split-glance"],
         });
 
         if (ZenBoostsManager && globalThis.Services?.obs) {
@@ -363,7 +368,7 @@
     _applyTextColor(property, color, selection) {
       if (!selection || selection.start === selection.end || !["color", "background-color"].includes(property)) return;
       const body = this._editorMarkdown();
-      const start = body.lastIndexOf("\n", selection.start - 1) + 1;
+      const start = selection.start === 0 ? 0 : body.lastIndexOf("\n", selection.start - 1) + 1;
       const newline = body.indexOf("\n", selection.end);
       const end = newline < 0 ? body.length : newline;
       let absolute = start;
@@ -610,6 +615,7 @@
     }
 
     _queueSave() {
+      this._updatePlaceholder();
       this._recordHistory();
       window.clearTimeout(this.saveTimer);
       this.saveTimer = window.setTimeout(() => {
@@ -708,7 +714,8 @@
     }
 
     _recoverExistingNoteTabs() {
-      for (const tab of gBrowser.tabs) {
+      for (const tab of (globalThis.gZenWorkspaces?.allStoredTabs || gBrowser.tabs)) {
+        if (tab.closing) continue;
         const id = this._idFromTab(tab);
         const note = id ? this._getNote(id) : null;
         if (!note) continue;
@@ -774,6 +781,7 @@
       const host = page.parentElement;
       host.querySelector(".zen-notes-page-preview")?.remove();
       const copy = page.cloneNode(true);
+      copy.querySelector("#zen-notes-selection-toolbar")?.remove();
       copy.removeAttribute("id"); copy.classList.add("zen-notes-page-preview");
       for (const el of copy.querySelectorAll("[id]")) {
         if (el.id === "zen-notes-editor") el.classList.add("zen-notes-preview-editor");
@@ -909,10 +917,18 @@
       page.addEventListener("drop", event => this._dropImages(event).catch(error => console.error(LOG, error)));
       page.addEventListener("keydown", event => this._pageKeys(event), true);
       editor.addEventListener("keydown", event => {
-        if (event.target !== editor || event.metaKey || event.ctrlKey) return;
+        if (event.target !== editor) return;
+        event.stopPropagation();
+        if (event.metaKey || event.ctrlKey) return;
         const selection = this._bodySelection();
-        if (selection && selection.start !== selection.end && ["Backspace", "Delete", "Enter"].includes(event.key)) {
-          event.preventDefault(); this._replaceBodySelection(event.key === "Enter" ? "\n\n" : "", selection);
+        if (selection && ["Backspace", "Delete", "Enter"].includes(event.key)) {
+          event.preventDefault();
+          if (selection.start === selection.end && event.key !== "Enter") {
+            const body = this._editorMarkdown();
+            if (event.key === "Backspace") selection.start -= [...body.slice(0, selection.start)].at(-1)?.length || 0;
+            else selection.end += [...body.slice(selection.end)][0]?.length || 0;
+          }
+          this._replaceBodySelection(event.key === "Enter" ? "\n\n" : "", selection);
         }
       });
       editor.addEventListener("paste", event => { if (event.target === editor) this._pastePlainText(event); });
@@ -922,9 +938,18 @@
         }
         const selected = this._bodySelection();
         const range = window.getSelection().rangeCount ? window.getSelection().getRangeAt(0) : null;
-        if (!selected || selected.start === selected.end || !range || (range.startContainer === range.endContainer && range.startContainer !== editor)) return;
-        if (event.inputType.startsWith("delete") || event.inputType === "insertText") {
-          event.preventDefault(); this._replaceBodySelection(event.data || "", selected);
+        if (!selected || !range) return;
+        const visual = editor.hasAttribute("contenteditable");
+        if (!visual && (selected.start === selected.end || range.startContainer === range.endContainer)) return;
+        if (event.inputType.startsWith("delete") || ["insertText", "insertParagraph", "insertLineBreak"].includes(event.inputType)) {
+          event.preventDefault();
+          if (selected.start === selected.end && event.inputType.startsWith("delete")) {
+            const body = this._editorMarkdown();
+            if (event.inputType.endsWith("Backward")) selected.start -= [...body.slice(0, selected.start)].at(-1)?.length || 0;
+            else selected.end += [...body.slice(selected.end)][0]?.length || 0;
+          }
+          const text = ["insertParagraph", "insertLineBreak"].includes(event.inputType) ? "\n" : event.data || "";
+          this._replaceBodySelection(text, selected);
         }
       }, true);
       page.addEventListener("copy", event => {
@@ -937,6 +962,18 @@
       });
       page.addEventListener("contextmenu", event => this._editorContextMenu(event));
       page.addEventListener("pointerdown", event => this._imagePointer(event), true);
+      editor.setAttribute("data-placeholder", "Your best ideas here…");
+      this._selectionChanged ||= () => this._updateSelectionToolbar();
+      document.addEventListener("selectionchange", this._selectionChanged);
+      scroll.addEventListener("scroll", () => this._updateSelectionToolbar());
+      page.addEventListener("cut", event => {
+        if (!editor.hasAttribute("contenteditable")) return;
+        const selected = this._bodySelection();
+        if (selected && selected.start !== selected.end && event.clipboardData) {
+          event.preventDefault(); event.clipboardData.setData("text/plain", window.getSelection().toString());
+          this._replaceBodySelection("", selected);
+        }
+      });
       canvas.append(title, editor);
       scroll.append(canvas);
       page.append(scroll, this._noteFooter(null));
@@ -1082,12 +1119,6 @@
         return;
       }
       const link = event.target?.closest?.(".zen-notes-link, .zen-notes-wikilink");
-      if (link) {
-        event.preventDefault();
-        event.stopPropagation();
-        this._followLink(link, event.altKey).catch(error => console.error(LOG, error));
-        return;
-      }
       const spoiler = event.target?.closest?.(".zen-notes-spoiler");
       if (spoiler) { event.preventDefault(); spoiler.classList.toggle("is-revealed"); return; }
       const checkbox = event.target?.closest?.(".zen-notes-task-checkbox");
@@ -1109,39 +1140,84 @@
         if (other !== line && other.classList.contains("is-editing")) this._commitLine(other);
       }
       const rawOffset = this._rawOffsetFromPointer(line, event.clientX, event.clientY);
-      this._startMouseSelection(event, line, rawOffset);
-      if (this._activeLine === line) return;
       event.preventDefault();
       event.stopPropagation();
-      this._focusLine(line, rawOffset);
+      line._suppressMouseFocusUntil = Date.now() + 600;
+      this._startMouseSelection(event, line, rawOffset, link ? () => this._followLink(link, event.altKey).catch(error => console.error(LOG, error)) : null);
     }
 
-    _startMouseSelection(event, line, rawOffset) {
+    _startMouseSelection(event, line, rawOffset, clickAction = null) {
       this._cancelMouseSelection?.();
       const editor = line.parentElement, id = this.currentNoteId;
       const startX = event.clientX, startY = event.clientY;
-      const index = Array.from(editor.children).indexOf(line);
-      let prepared = false;
+      let prepared = false, anchor;
+      const prepare = () => {
+        if (prepared) return;
+        this._mouseSelecting = true;
+        this._prepareVisualSelection();
+        const content = line.querySelector(".zen-notes-list-content") || line;
+        const map = this._lineDisplayMap(line);
+        const visible = map.offsets.filter(offset => offset < rawOffset).length;
+        anchor = this._textPoint(content, visible);
+        prepared = true;
+      };
       const move = e => {
         if (!(e.buttons & 1) || this.currentNoteId !== id || !line.isConnected) { finish(); return; }
         if (!prepared && Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
-        e.preventDefault();
-        if (!prepared) { this._mouseSelecting = true; this._selectAll(); prepared = true; }
-        const anchor = editor.children[index];
+        e.preventDefault(); prepare();
         let position = document.caretPositionFromPoint?.(e.clientX, e.clientY);
         if (!position || !editor.contains(position.offsetNode)) {
           const bounds = editor.getBoundingClientRect();
           position = document.caretPositionFromPoint?.(Math.max(bounds.left + 1, Math.min(bounds.right - 1, e.clientX)), Math.max(bounds.top + 1, Math.min(bounds.bottom - 1, e.clientY)));
         }
-        if (!anchor?.firstChild || !position || !editor.contains(position.offsetNode)) return;
-        window.getSelection().setBaseAndExtent(anchor.firstChild, Math.min(rawOffset, anchor.firstChild.textContent.length), position.offsetNode, position.offset);
+        if (position && editor.contains(position.offsetNode)) window.getSelection().setBaseAndExtent(anchor.node, anchor.offset, position.offsetNode, position.offset);
       };
-      const finish = () => {
+      const finish = e => {
         window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", finish, true); window.removeEventListener("pointercancel", finish, true);
         this._mouseSelecting = false; this._cancelMouseSelection = null;
+        if (e?.type === "pointerup" && this.currentNoteId === id && line.isConnected) {
+          if (!prepared) {
+            const now = Date.now(), double = this._lastNoteClick?.line === line && now - this._lastNoteClick.time < 400;
+            this._lastNoteClick = { line, time: now };
+            if (double) {
+              prepare(); this._mouseSelecting = false;
+              const content = line.querySelector(".zen-notes-list-content") || line;
+              const text = content.textContent || "", map = this._lineDisplayMap(line);
+              let start = map.offsets.filter(offset => offset < rawOffset).length, end = start;
+              while (start > 0 && /[\p{L}\p{N}_]/u.test(text[start - 1])) start--;
+              while (end < text.length && /[\p{L}\p{N}_]/u.test(text[end])) end++;
+              const a = this._textPoint(content, start), b = this._textPoint(content, end);
+              window.getSelection().setBaseAndExtent(a.node, a.offset, b.node, b.offset);
+            } else if (clickAction) clickAction();
+            else { line._suppressMouseFocusUntil = 0; this._focusLine(line, rawOffset); }
+          }
+          this._updateSelectionToolbar();
+        }
       };
       this._cancelMouseSelection = finish;
       window.addEventListener("pointermove", move, true); window.addEventListener("pointerup", finish, true); window.addEventListener("pointercancel", finish, true);
+    }
+
+    _textPoint(root, offset) {
+      const walker = document.createTreeWalker(root, 4);
+      let node, last;
+      while ((node = walker.nextNode())) {
+        last = node;
+        if (offset <= node.textContent.length) return { node, offset };
+        offset -= node.textContent.length;
+      }
+      return last ? { node: last, offset: last.textContent.length } : { node: root, offset: 0 };
+    }
+
+    _prepareVisualSelection() {
+      const editor = document.getElementById("zen-notes-editor");
+      for (const line of editor.children) {
+        if (line.classList.contains("is-editing")) this._commitLine(line);
+        line.removeAttribute("contenteditable");
+      }
+      this._activeLine = null;
+      this._setPlainEditable(editor);
+      editor.focus({ preventScroll: true });
     }
 
     _rawOffsetFromPointer(line, x, y) {
@@ -1157,53 +1233,55 @@
           visibleOffset = range.toString().length;
         }
       } catch {}
-      return line.classList.contains("is-editing") ? visibleOffset : this._visibleOffsetToRaw(raw, visibleOffset);
+      return line.classList.contains("is-editing") || line.dataset.codeBlock === "true" || line.dataset.mathBlock === "true" ? visibleOffset : this._visibleOffsetToRaw(raw, visibleOffset);
     }
 
-    _visibleTextForRaw(raw) {
-      let s = raw.replace(/<span style="([^"]+)">|<\/span>/g, (tag, style) => !style || this._safeColorStyle(style) ? "" : tag);
-      s = s.replace(/^\s*#{1,6}\s+/, "");
-      s = s.replace(/^\s*>\s?/, "");
-      s = s.replace(/^\s*[-*+]\s+\[[ xX]\]\s+/, "");
-      s = s.replace(/^\s*[-*+]\s+/, "");
-      s = s.replace(/^\s*\d+[.)]\s+/, "");
-      s = s.replace(/\*\*([^*]+)\*\*/g, "$1");
-      s = s.replace(/__([^_]+)__/g, "$1");
-      s = s.replace(/~~([^~]+)~~/g, "$1");
-      s = s.replace(/==([^=]+)==/g, "$1");
-      s = s.replace(/`([^`]+)`/g, "$1");
-      s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
-      s = s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a);
-      s = s.replace(/\*([^*]+)\*/g, "$1");
-      s = s.replace(/_([^_]+)_/g, "$1");
-      return s;
+    // Display offsets point to original source characters, including nested styling.
+    // Mapping the complete source avoids counting incomplete Markdown prefixes.
+    _lineDisplayMap(line) {
+      const raw = line.dataset.raw || "";
+      return line.dataset.codeBlock === "true" || line.dataset.mathBlock === "true"
+        ? { text: raw, offsets: Array.from({ length: raw.length }, (_, index) => index), prefix: 0 }
+        : this._displayMap(raw);
     }
 
-    _visibleOffsetToRaw(raw, visibleOffset) {
-      const tags = Array.from(raw.matchAll(/<span style="([^"]+)">|<\/span>/g)).filter(m => !m[1] || this._safeColorStyle(m[1]));
-      if (tags.length) {
-        let clean = "", at = 0; const offsets = [];
-        for (const tag of tags) {
-          for (let i = at; i < tag.index; i++) { offsets.push(i); clean += raw[i]; }
-          at = tag.index + tag[0].length;
-        }
-        for (let i = at; i < raw.length; i++) { offsets.push(i); clean += raw[i]; }
-        const mapped = this._visibleOffsetToRaw(clean, visibleOffset);
-        return offsets[mapped] ?? raw.length;
-      }
-      // Exact source/display mapping is expensive. For click placement, find the
-      // closest source position whose rendered prefix has the requested length.
+    _displayMap(raw) {
+      let text = "", offsets = [];
       const prefix = raw.match(/^(?:\s*[-*+]\s+(?:\[[ xX]\]\s*)?|\s*\d+[.)]\s+|#{1,6}\s+|>\s?)/)?.[0].length || 0;
-      if (visibleOffset === 0) return prefix;
-      let best = raw.length;
-      let bestDelta = Infinity;
-      for (let i = prefix; i <= raw.length; i++) {
-        const len = this._visibleTextForRaw(raw.slice(0, i)).length;
-        const delta = Math.abs(len - visibleOffset);
-        if (delta < bestDelta) { best = i; bestDelta = delta; }
-        if (len > visibleOffset && delta > bestDelta) break;
-      }
-      return best;
+      const walk = (part, base) => {
+        for (let i = 0; i < part.length;) {
+          const rest = part.slice(i);
+          const tag = rest.match(/^(?:<span style="([^"]+)">|<\/span>|<\/?u>)/);
+          if (tag && (!tag[1] || this._safeColorStyle(tag[1]))) { i += tag[0].length; continue; }
+          const comment = rest.match(/^<!--(.*?)-->/);
+          if (comment) { walk(comment[1], base + i + 4); i += comment[0].length; continue; }
+          const footnote = rest.match(/^\[\^([^\]]+)\]/);
+          if (footnote) { walk(footnote[1], base + i + 2); i += footnote[0].length; continue; }
+          const link = rest.match(/^\[([^\]]+)\]\([^)]*\)/);
+          const wiki = rest.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/);
+          const pair = rest.match(/^(\*\*|__|~~|==|\|\||`|\*|_|\$)(.+?)\1/);
+          if (link) { walk(link[1], base + i + 1); i += link[0].length; continue; }
+          if (wiki) { const label = wiki[2] || wiki[1]; walk(label, base + i + 2 + (wiki[2] ? wiki[1].length + 1 : 0)); i += wiki[0].length; continue; }
+          if (pair) {
+            if (["`", "$"].includes(pair[1])) {
+              for (let j = 0; j < pair[2].length; j++) { offsets.push(base + i + pair[1].length + j); text += pair[2][j]; }
+            } else walk(pair[2], base + i + pair[1].length);
+            i += pair[0].length; continue;
+          }
+          if (rest[0] === "\\" && /[\\`*{}\[\]()#+.!_>~-]/.test(rest[1] || "")) { i++; }
+          offsets.push(base + i); text += part[i++];
+        }
+      };
+      walk(raw.slice(prefix), prefix);
+      return { text, offsets, prefix };
+    }
+
+    _visibleTextForRaw(raw) { return this._displayMap(raw).text; }
+
+    _visibleOffsetToRaw(raw, visibleOffset, end = false) {
+      const map = this._displayMap(raw);
+      if (end && visibleOffset > 0) return (map.offsets[Math.min(visibleOffset, map.offsets.length) - 1] ?? raw.length - 1) + 1;
+      return map.offsets[visibleOffset] ?? (visibleOffset === 0 ? map.prefix : raw.length);
     }
 
     _activateLine(line) {
@@ -1241,7 +1319,7 @@
     _renderAllLines() {
       const editor = document.getElementById("zen-notes-editor");
       if (!editor) return;
-      let insideFence = false;
+      let insideFence = false, insideMath = false;
       const tableLines = Array.from(editor.children);
       for (let i = 0; i < tableLines.length; i++) {
         const line = tableLines[i], raw = line.dataset.raw || "";
@@ -1259,10 +1337,13 @@
         const raw = line.dataset.raw ?? "";
         const fence = /^\s*```/.test(raw);
         line.dataset.codeBlock = insideFence || fence ? "true" : "false";
+        line.dataset.mathBlock = !insideFence && (insideMath || raw.trim() === "$$") ? "true" : "false";
         this._renderLine(line, insideFence);
+        if (!insideFence && raw.trim() === "$$") insideMath = !insideMath;
         if (insideFence || fence) line.classList.remove("is-table-row", "is-table-divider", "is-table-start");
         if (fence) insideFence = !insideFence;
       }
+      this._updatePlaceholder();
     }
 
     _renderLine(line, forceCode = null) {
@@ -1282,6 +1363,12 @@
         return;
       }
 
+      if (line.dataset.mathBlock === "true") {
+        line.innerHTML = raw.trim() === "$$" ? '<span class="zen-notes-md-marker">$$</span>' : `<code class="zen-notes-math">${this._escape(raw) || "<br/>"}</code>`;
+        return;
+      }
+      const footnote = raw.match(/^\[\^([^\]]+)\]:\s*(.*)$/);
+      if (footnote) { line.innerHTML = `<small class="zen-notes-footnote"><sup>${this._escape(footnote[1])}</sup> ${this._inline(footnote[2])}</small>`; return; }
       const pdf = this._pdfInfo(raw);
       if (pdf) {
         line.spellcheck = false;
@@ -1392,14 +1479,17 @@
 
       text = text.replace(/\\([\\`*{}\[\]()#+.!_>~-])/g, (_, c) => token(c));
       text = text.replace(/`([^`]+)`/g, (_, c) => token(`<code>${c}</code>`));
+      text = text.replace(/&lt;!--(.*?)--&gt;/g, (_, c) => token(exporting ? `<!--${c}-->` : `<span class="zen-notes-comment" title="Comment">${c}</span>`));
+      text = text.replace(/\$([^$]+)\$/g, (_, c) => token(`<code class="zen-notes-math">${c}</code>`));
+      text = text.replace(/\[\^([^\]]+)\]/g, (_, c) => token(`<sup class="zen-notes-footnote-ref">${c}</sup>`));
       let imageIndex = 0;
       text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, source) => {
         const url = source.replace(/^&lt;|&gt;$/g, "");
         const width = Number(alt.match(/\|width=(\d+)$/)?.[1]);
         const cleanAlt = alt.replace(/\|width=\d+$/, "");
+        const index = imageIndex++;
         if (!/^(?:https?:\/\/|data:image\/(?:png|jpeg|gif|webp);base64,)/i.test(url)) return token(`<span class="zen-notes-embed">${cleanAlt || "Image: unsupported URL"}</span>`);
         if (exporting) return token(`<img class="zen-notes-image" src="${url}" alt="${cleanAlt}"${width ? ` width="${width}"` : ""}/>`);
-        const index = imageIndex++;
         return token(`<span class="zen-notes-image-frame" contenteditable="false" data-image-index="${index}"${width ? ` style="width:${Math.max(64, Math.min(1600, width))}px"` : ""}><img class="zen-notes-image" draggable="false" src="${url}" alt="${cleanAlt}" loading="lazy" referrerpolicy="no-referrer"/><span class="zen-notes-image-resize" aria-label="Resize image"></span></span>`);
       });
       text = text.replace(/\[Source: ([^\]]*)\]\((?:&lt;)?(https?:[^)]+)\)/g, (_, label, target) => {
@@ -2282,6 +2372,7 @@ function run(argv) {
       const editor = document.getElementById("zen-notes-editor");
       editor.replaceChildren(...body.split("\n").map(raw => this._makeLine(raw)));
       this._renderAllLines();
+      this._updatePlaceholder();
     }
 
     _endWholeSelection() {
@@ -2293,39 +2384,34 @@ function run(argv) {
 
     _selectAll() {
       const editor = document.getElementById("zen-notes-editor");
-      // One source selection across every line, including Markdown markers.
-      this._commitActiveLine();
-      for (const line of editor.children) {
-        line.textContent = line.dataset.raw || "";
-        line.classList.add("is-editing");
-      }
-      this._activeLine = null;
-      for (const line of editor.children) line.removeAttribute("contenteditable");
-      this._setPlainEditable(editor);
-      editor.focus({ preventScroll: true });
+      this._prepareVisualSelection();
       const range = document.createRange(); range.selectNodeContents(editor);
       const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      this._updateSelectionToolbar();
     }
 
     _bodySelection() {
       const editor = document.getElementById("zen-notes-editor");
       const selection = window.getSelection?.();
-      if (!selection?.rangeCount) return null;
+      if (!editor || !selection?.rangeCount) return null;
       const range = selection.getRangeAt(0);
       if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) return null;
       const lines = Array.from(editor.children);
-      const offset = (node, position) => {
+      const offset = (node, position, end = false) => {
         if (node === editor) return lines.slice(0, position).reduce((n, l) => n + (l.dataset.raw || "").length + 1, 0);
         const line = (node.nodeType === 1 ? node : node.parentElement).closest(".zen-notes-line");
         const index = lines.indexOf(line);
         if (index < 0) return 0;
         const prefix = lines.slice(0, index).reduce((n, l) => n + (l.classList.contains("is-editing") ? this._lineText(l) : l.dataset.raw || "").length + 1, 0);
-        const r = document.createRange(); r.selectNodeContents(line); r.setEnd(node, position);
-        const local = line.classList.contains("is-editing") ? r.toString().length : this._visibleOffsetToRaw(line.dataset.raw || "", r.toString().length);
+        const content = line.querySelector(".zen-notes-list-content") || line;
+        const r = document.createRange(); r.selectNodeContents(content);
+        if (content.contains(node)) r.setEnd(node, position);
+        else if (node === line && position === 0) r.collapse(true);
+        const local = line.classList.contains("is-editing") || line.dataset.codeBlock === "true" || line.dataset.mathBlock === "true" ? r.toString().length : this._visibleOffsetToRaw(line.dataset.raw || "", r.toString().length, end);
         return prefix + local;
       };
       const body = this._editorMarkdown();
-      return { start: Math.min(body.length, offset(range.startContainer, range.startOffset)), end: Math.min(body.length, offset(range.endContainer, range.endOffset)) };
+      return { start: Math.min(body.length, offset(range.startContainer, range.startOffset)), end: Math.min(body.length, offset(range.endContainer, range.endOffset, !range.collapsed)) };
     }
 
     _replaceBodySelection(text, selection = this._bodySelection()) {
@@ -2349,7 +2435,15 @@ function run(argv) {
         if (change) selected = change.before;
         else if (selected === selected.toLocaleUpperCase() && selected !== selected.toLocaleLowerCase()) selected = selected.toLocaleLowerCase();
       }
-      const wraps = { bold: ["**", "**"], italic: ["*", "*"], strike: ["~~", "~~"], underline: ["<u>", "</u>"], spoiler: ["||", "||"], code: ["`", "`"], link: ["[", "](https://)"] };
+      const wraps = { bold: ["**", "**"], italic: ["*", "*"], strike: ["~~", "~~"], underline: ["<u>", "</u>"], spoiler: ["||", "||"], highlight: ["==", "=="], maths: ["$", "$"], comment: ["<!-- ", " -->"], code: ["`", "`"], link: ["[", "](https://)"] };
+      if (action === "link") {
+        const input = { value: "https://" };
+        if (!Services.prompt.prompt(window, "Add Link", "URL", input, null, {})) return;
+        const url = input.value.trim();
+        if (!/^(?:https?:\/\/|mailto:)/i.test(url)) { this._showNotice("Enter a web or email link"); return; }
+        this._replaceBodySelection(`[${selected || url}](<${url.replace(/>/g, "%3E")}>)`, selection);
+        this._finishVisualEdit(); return;
+      }
       let value = selected;
       if (wraps[action]) value = wraps[action][0] + selected + wraps[action][1];
       else if (action === "clear") value = selected.replace(/<span style="([^"]+)">|<\/span>/g, (tag, style) => !style || this._safeColorStyle(style) ? "" : tag).replace(/!?(\[([^\]]*)\])\([^)]*\)/g, "$2").replace(/<\/?u>/g, "").replace(/(\*\*|__|~~|==|\|\||`|\*|_)/g, "").replace(/^\s*(?:#{1,6}\s+|>\s?)/gm, "");
@@ -2363,6 +2457,7 @@ function run(argv) {
         note.caseChanges = [...(note.caseChanges || []), { before: selected, after: value }].slice(-50);
       }
       this._replaceBodySelection(value, selection);
+      this._finishVisualEdit();
     }
 
     _pageKeys(event) {
@@ -2443,13 +2538,167 @@ function run(argv) {
       return item;
     }
 
+    _removeImageRaw(raw, index) {
+      const match = this._imageMatches(raw)[index];
+      return match ? raw.slice(0, match.index) + raw.slice(match.index + match[0].length) : raw;
+    }
+
+    async _copyNoteImage(img) {
+      try {
+        if (!img) return;
+        await img.decode();
+        const canvas = this._html("canvas");
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+        if (!blob) throw new Error("Image encoding failed");
+        const { BrowserUtils } = ChromeUtils.importESModule("resource://gre/modules/BrowserUtils.sys.mjs");
+        BrowserUtils.copyImageToClipboard(await blob.arrayBuffer());
+        this._showNotice("Image copied");
+      } catch (error) { console.error(LOG, "Copy image failed", error); this._showNotice("Could not copy image"); }
+    }
+
+    _updatePlaceholder() {
+      const editor = document.getElementById("zen-notes-editor");
+      if (editor) editor.toggleAttribute("data-empty", !this._editorMarkdown().trim());
+    }
+
+    _finishVisualEdit() {
+      const position = this._bodySelection()?.end ?? this._editorMarkdown().length;
+      this._prepareVisualSelection();
+      const editor = document.getElementById("zen-notes-editor");
+      let rest = position, line = editor.lastElementChild;
+      for (const candidate of editor.children) {
+        if (rest <= candidate.dataset.raw.length) { line = candidate; break; }
+        rest -= candidate.dataset.raw.length + 1;
+      }
+      if (line) {
+        const content = line.querySelector(".zen-notes-list-content") || line;
+        const offset = this._lineDisplayMap(line).offsets.filter(value => value < rest).length;
+        const point = this._textPoint(content, offset), range = document.createRange();
+        range.setStart(point.node, point.offset); range.collapse(true);
+        const selected = window.getSelection(); selected.removeAllRanges(); selected.addRange(range);
+      }
+      this._hideSelectionToolbar();
+    }
+
+    _hideSelectionToolbar() {
+      const toolbar = document.getElementById("zen-notes-selection-toolbar");
+      if (toolbar) toolbar.hidden = true;
+    }
+
+    _updateSelectionToolbar() {
+      const page = document.getElementById("zen-notes-page"), selection = window.getSelection();
+      const selected = this._bodySelection();
+      if (!page || page.hidden || this._mouseSelecting || this._contextMenuOpen || !selected || selected.start === selected.end || selection.isCollapsed || !selection.toString().trim()) { this._hideSelectionToolbar(); return; }
+      let toolbar = document.getElementById("zen-notes-selection-toolbar");
+      if (!toolbar) {
+        toolbar = this._html("div"); toolbar.id = "zen-notes-selection-toolbar";
+        toolbar.setAttribute("role", "toolbar"); toolbar.setAttribute("aria-label", "Format selection");
+        toolbar.addEventListener("pointerdown", event => event.preventDefault());
+        for (const [label, action, title] of [["Aa ▾", "paragraph", "Paragraph style"], ["B", "bold", "Bold"], ["I", "italic", "Italic"], ["U", "underline", "Underline"], ["S", "strike", "Strikethrough"], ["", "link", "Add link"]]) {
+          const button = this._html("button"); button.type = "button";
+          button.textContent = label; button.dataset.action = action;
+          if (action === "link") button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 13 4-4m-6 6-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 2 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" transform="translate(1 1)"/></svg>';
+          button.title = title; button.setAttribute("aria-label", title);
+          button.addEventListener("click", () => {
+            if (toolbar._noteId !== this.currentNoteId) return;
+            if (action === "paragraph") {
+              let popup = document.getElementById("zen-notes-style-menu");
+              if (!popup) { popup = document.createXULElement("menupopup"); popup.id = "zen-notes-style-menu"; popup.dataset.zenNotesMenu = "true"; document.getElementById("mainPopupSet").append(popup); }
+              const menu = this._editingMenus(toolbar._selection)[1];
+              popup.replaceChildren(...Array.from(menu.firstChild.children));
+              this._contextMenuOpen = true;
+              popup.addEventListener("popuphidden", () => { this._contextMenuOpen = false; }, { once: true });
+              popup.openPopup(button, "after_start", 0, 0, false, false);
+            } else this._format(action, toolbar._selection);
+          });
+          toolbar.append(button);
+        }
+        page.append(toolbar);
+      }
+      toolbar._selection = { ...selected }; toolbar._noteId = this.currentNoteId;
+      const rect = selection.getRangeAt(0).getBoundingClientRect(), bounds = page.getBoundingClientRect();
+      if (rect.bottom < bounds.top || rect.top > bounds.bottom) { toolbar.hidden = true; return; }
+      toolbar.hidden = false;
+      toolbar.style.left = `${Math.max(8, Math.min(bounds.width - toolbar.offsetWidth - 8, rect.left - bounds.left))}px`;
+      const above = rect.top - bounds.top - toolbar.offsetHeight - 8;
+      toolbar.style.top = `${Math.max(8, Math.min(bounds.height - toolbar.offsetHeight - 8, above >= 8 ? above : rect.bottom - bounds.top + 8))}px`;
+    }
+
+    _editingMenus(selection) {
+      const format = [["Bold", "bold"], ["Italic", "italic"], ["Underline", "underline"], ["Strikethrough", "strike"], ["Highlight", "highlight"], null,
+        ["Code", "code"], ["Maths", "maths"], ["Comment", "comment"], ["Spoiler", "spoiler"], null, ["Clear Formatting", "clear"]];
+      const paragraph = [["Bullet List", "bullet"], ["Numbered List", "numbered"], ["Task List", "task"], null,
+        ...Array.from({ length: 6 }, (_, n) => [`Heading ${n + 1}`, `h${n + 1}`]), ["Body", "body"], null, ["Quote", "quote"]];
+      const insert = [["Link…", "link"], ["Footnote", "footnote"], ["Table", "table"], ["Callout", "callout"], ["Horizontal Rule", "rule"], null,
+        ["Code Block", "codeblock"], ["Maths Block", "mathblock"], null, ["Date", "date"]];
+      return [["Format", format], ["Paragraph", paragraph], ["Insert", insert]].map(([label, entries]) => {
+        const menu = document.createXULElement("menu"); menu.setAttribute("label", label);
+        const popup = document.createXULElement("menupopup");
+        for (const entry of entries) {
+          if (!entry) { popup.append(document.createXULElement("menuseparator")); continue; }
+          const [title, action] = entry;
+          const item = this._menuItem(title, () => {
+            if (label === "Paragraph") this._paragraph(action, selection);
+            else if (label === "Insert" && action !== "link") this._insertSyntax(action, selection);
+            else this._format(action, selection);
+          });
+          item.disabled = !selection;
+          if (label === "Format" && ["bold", "italic"].includes(action)) item.setAttribute("acceltext", (Services.appinfo.OS === "Darwin" ? "⌘" : "Ctrl+") + action[0].toUpperCase());
+          popup.append(item);
+        }
+        menu.append(popup); return menu;
+      });
+    }
+
+    _paragraph(action, selection) {
+      if (!selection) return;
+      const body = this._editorMarkdown();
+      const start = selection.start === 0 ? 0 : body.lastIndexOf("\n", selection.start - 1) + 1;
+      const newline = body.indexOf("\n", Math.max(selection.start, selection.end - 1));
+      const end = newline < 0 ? body.length : newline;
+      const raw = body.slice(start, end).split("\n").map((line, index) => {
+        const clean = line.replace(/^(?:\s*[-*+]\s+(?:\[[ xX]\]\s*)?|\s*\d+[.)]\s+|#{1,6}\s+|>\s?)/, "");
+        const prefix = { bullet: "- ", numbered: `${index + 1}. `, task: "- [ ] ", quote: "> ", body: "" }[action] ?? (/^h[1-6]$/.test(action) ? "#".repeat(Number(action[1])) + " " : "");
+        return prefix + clean;
+      }).join("\n");
+      this._replaceBodySelection(raw, { start, end }); this._finishVisualEdit();
+    }
+
+    _insertSyntax(action, selection) {
+      if (!selection) return;
+      const body = this._editorMarkdown(), selected = body.slice(selection.start, selection.end);
+      if (action === "date") { this._format("date", selection); return; }
+      if (action === "footnote") {
+        let n = 1; while (body.includes(`[^${n}]`)) n++;
+        this._recordHistory();
+        this._setBody(body.slice(0, selection.start) + selected + `[^${n}]` + body.slice(selection.end) + `\n\n[^${n}]: Footnote`);
+        this._queueSave(); this._hideSelectionToolbar(); return;
+      }
+      const templates = { table: "| Column 1 | Column 2 |\n| --- | --- |\n|  |  |", callout: "> [!note]\n> " + (selected || "Note"),
+        rule: "---", codeblock: "```\n" + selected + "\n```", mathblock: "$$\n" + (selected || "x = y") + "\n$$" };
+      if (!(action in templates)) return;
+      const prefix = selection.start > 0 && body[selection.start - 1] !== "\n" ? "\n\n" : "";
+      const suffix = selection.end < body.length && body[selection.end] !== "\n" ? "\n\n" : "\n";
+      this._replaceBodySelection(prefix + templates[action] + suffix, selection);
+      this._finishVisualEdit();
+    }
+
     _editorContextMenu(event) {
       event.preventDefault();
       event.stopPropagation();
       const selection = window.getSelection();
       const range = selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
       const target = event.target.closest("[contenteditable]");
-      const bodySelection = this._bodySelection();
+      let bodySelection = this._bodySelection();
+      const clickedLine = event.target.closest(".zen-notes-line");
+      if (clickedLine && (!bodySelection || selection.isCollapsed)) {
+        const lines = Array.from(clickedLine.parentElement.children), index = lines.indexOf(clickedLine);
+        const start = lines.slice(0, index).reduce((sum, line) => sum + (line.dataset.raw || "").length + 1, 0) + this._rawOffsetFromPointer(clickedLine, event.clientX, event.clientY);
+        bodySelection = { start, end: start };
+      }
+      this._hideSelectionToolbar();
       let popup = document.getElementById("zen-notes-edit-menu");
       if (!popup) {
         popup = document.createXULElement("menupopup");
@@ -2460,6 +2709,19 @@ function run(argv) {
       this._contextMenuOpen = true;
       popup.addEventListener("popuphidden", () => { this._contextMenuOpen = false; }, { once: true });
       popup.replaceChildren();
+      const frame = event.target.closest(".zen-notes-image-frame");
+      if (frame) {
+        const line = frame.closest(".zen-notes-line"), index = Number(frame.dataset.imageIndex);
+        const noteId = this.currentNoteId, raw = line.dataset.raw;
+        popup.append(this._menuItem("Copy Image", () => this._copyNoteImage(frame.querySelector("img"))));
+        popup.append(document.createXULElement("menuseparator"));
+        popup.append(this._menuItem("Delete Image", () => {
+          if (this.currentNoteId !== noteId || !line.isConnected || line.dataset.raw !== raw) return;
+          this._recordHistory(); line.dataset.raw = this._removeImageRaw(raw, index);
+          this._renderAllLines(); this._queueSave();
+        }));
+        popup.openPopupAtScreen(event.screenX, event.screenY, true); return;
+      }
       const video = event.target.closest("[data-video-id]");
       if (video) {
         const id = video.dataset.videoId, note = this._getNote(this.currentNoteId);
@@ -2473,7 +2735,7 @@ function run(argv) {
       }
       for (const [label, command] of [["Copy", "copy"], ["Cut", "cut"], ["Paste", "paste"], ["Select All", "selectAll"]]) {
         const item = this._menuItem(label, () => {
-          target?.focus();
+          if (!document.getElementById("zen-notes-editor").hasAttribute("contenteditable")) target?.focus();
           if (range) { selection.removeAllRanges(); selection.addRange(range); }
           if (command === "selectAll") {
             this._selectAll();
@@ -2489,24 +2751,9 @@ function run(argv) {
       }
       noteLink.disabled = !bodySelection || !noteChoices.children.length;
       noteLink.append(noteChoices);
-      const formatting = document.createXULElement("menu"); formatting.setAttribute("label", "Formatting");
-      const options = document.createXULElement("menupopup");
-      const modifier = Services.appinfo.OS === "Darwin" ? "⌘" : "Ctrl+";
-      const entries = [["Clear Formatting", "clear", ""], null,
-        ["Strikethrough", "strike", (Services.appinfo.OS === "Darwin" ? "⇧⌘" : "Ctrl+Shift+") + "X"], ["Underline", "underline", (Services.appinfo.OS === "Darwin" ? "⇧⌘" : "Ctrl+Shift+") + "U"],
-        ["Spoiler", "spoiler", (Services.appinfo.OS === "Darwin" ? "⇧⌘" : "Ctrl+Shift+") + "P"], ["Monospace", "code", (Services.appinfo.OS === "Darwin" ? "⇧⌘" : "Ctrl+Shift+") + "K"],
-        ["Italic", "italic", modifier + "I"], ["Bold", "bold", modifier + "B"], ["Make Link", "link", modifier + "U"],
-        ["Task List", "task", ""], ["Date", "date", ""], ["Quote", "quote", (Services.appinfo.OS === "Darwin" ? "⇧⌘" : "Ctrl+Shift+") + "I"], null,
-        ["Add Divider", "divider", ""], null,
-        ["Make Upper Case", "upper", ""], ["Make Lower Case", "lower", ""], ["Capitalize", "capitalize", ""]];
-      for (const entry of entries) {
-        if (!entry) { options.append(document.createXULElement("menuseparator")); continue; }
-        const [label, action, shortcut] = entry;
-        const item = this._menuItem(label, () => action === "divider" ? this._insertDivider(bodySelection || { start: this._editorMarkdown().length, end: this._editorMarkdown().length }) : this._format(action, bodySelection));
-        if (shortcut) item.setAttribute("acceltext", shortcut);
-        item.disabled = action !== "divider" && !bodySelection; options.append(item);
-      }
-      formatting.append(options); popup.append(document.createXULElement("menuseparator"), formatting);
+      const menus = this._editingMenus(bodySelection);
+      popup.prepend(...menus, document.createXULElement("menuseparator"));
+      popup.append(document.createXULElement("menuseparator"));
       const colors = document.createXULElement("menu"); colors.setAttribute("label", "Colors");
       const colorOptions = document.createXULElement("menupopup");
       colorOptions.append(this._colorMenu("Text Color", "color", bodySelection), this._colorMenu("Background Color", "background-color", bodySelection));
@@ -2575,7 +2822,7 @@ function run(argv) {
       const popup = document.createXULElement("menupopup"); popup.id = "zen-notes-selection-picker";
       for (const note of this.notes) popup.append(this._menuItem(note.title, () => this._appendSelection(note.id, text, "Text", source)));
       popup.append(document.createXULElement("menuseparator"));
-      popup.append(this._menuItem("Create Note…", async () => { const note = await this.createNote(); await this._appendSelection(note.id, text, "Text", source); }));
+      popup.append(this._menuItem("New Note…", async () => { const note = await this.createNote(); await this._appendSelection(note.id, text, "Text", source); }));
       document.getElementById("mainPopupSet").append(popup);
       popup.setAttribute("sizetopopup", "none");
       const bounds = browser.getBoundingClientRect();
@@ -2605,7 +2852,7 @@ function run(argv) {
       const choices = document.createXULElement("menupopup");
       for (const note of this.notes.filter(note => this._hasOpenNoteTab(note.id))) choices.append(this._menuItem(note.title, () => this._appendSelection(note.id, text, isLink ? "Link" : isImage ? "Image" : "Text", source)));
       choices.append(document.createXULElement("menuseparator"));
-      choices.append(this._menuItem("Create Note…", async () => {
+      choices.append(this._menuItem("New Note…", async () => {
         const note = await this.createNote();
         await this._appendSelection(note.id, text, isLink ? "Link" : isImage ? "Image" : "Text", source);
       }));
@@ -2767,7 +3014,8 @@ function run(argv) {
             const choices = document.createXULElement("menupopup");
             const text = `[${(tab.label || url).replace(/[\[\]\r\n]/g, " ")}](<${url.replace(/>/g, "%3E")}>)`;
             for (const note of this.notes) choices.append(this._menuItem(note.title, () => this._appendSelection(note.id, text, "Link")));
-            choices.append(this._menuItem("Create Note…", async () => { const note = await this.createNote(); await this._appendSelection(note.id, text, "Link"); }));
+            if (choices.children.length) choices.append(document.createXULElement("menuseparator"));
+            choices.append(this._menuItem("New Note…", async () => { const note = await this.createNote(); await this._appendSelection(note.id, text, "Link"); }));
             menu.append(choices);
             added.push(menu);
             const moveToFolder = Array.from(popup.children).find(node => node.id === "context_moveTabToGroup" || /move to folder/i.test(node.getAttribute?.("label") || ""));
@@ -2876,6 +3124,7 @@ function run(argv) {
     destroy() {
       this._destroyed = true;
       this._cancelMouseSelection?.();
+      document.removeEventListener("selectionchange", this._selectionChanged);
       for (const browser of document.querySelectorAll("browser[zen-notes-content]")) browser.removeAttribute("zen-notes-content");
       for (const [key, disabled] of this._reservedKeys || []) {
         if (disabled === null) key.removeAttribute("disabled"); else key.setAttribute("disabled", disabled);

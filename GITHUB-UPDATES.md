@@ -1,3 +1,14 @@
+# 0.14.9 alpha
+
+- Keep rendered text during mouse selection and Select All; map selections back to Markdown for edits.
+- Add a selection toolbar and Format / Paragraph / Insert context menus.
+- Add Copy Image and Delete Image, with native image clipboard integration.
+- Separate New Note from existing notes in Add Page to Note.
+- Recover note icons across workspaces.
+- Add an empty-note placeholder.
+
+Validation: syntax check, 22 focused logic/DOM mock checks, 26 baseline checks. Live Zen UI verification remains outstanding. Maths entries store Markdown notation; TeX typesetting is not included.
+
 # Оновлення через Sine та GitHub
 
 Репозиторій: https://github.com/preperevet-1/zen-notes
