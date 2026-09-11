@@ -1,4 +1,4 @@
-/* Zen Notes 0.14.10-alpha — based on 0.14 */
+/* Zen Notes 0.14.11-alpha — based on 0.14 */
 
 /* Native Firefox/Zen document glyph for the Create Note popup entry. */
 #zen-notes-create-menuitem {
@@ -544,7 +544,7 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 .zen-notes-math { font-family: ui-monospace, monospace; }
 .zen-notes-footnote { opacity: .75; }
 
-/* 0.14.10: toolbar uses the current workspace's accent. */
+/* 0.14.11: toolbar uses the current workspace's accent. */
 #zen-notes-selection-toolbar {
   --notes-toolbar-accent: var(--zen-notes-boost-accent, var(--zen-primary-color, var(--zen-colors-primary, var(--zen-notes-accent))));
 }
@@ -585,3 +585,38 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 .zen-notes-table-add.add-row { left: 0; bottom: 0; height: 23px; width: calc(100% - 23px); border-top: 0; }
 .zen-notes-table-add:hover { background: color-mix(in srgb, var(--zen-primary-color, var(--zen-notes-accent)) 12%, transparent); color: var(--zen-notes-page-fg); }
 .zen-notes-table-add svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+/* 0.14.11 — compact selection panel and source-free reading views. */
+.zen-notes-line:empty::before,
+.zen-notes-line:has(> br:only-child)::before { content: none; }
+#zen-notes-selection-toolbar { border-radius: 14px; padding: 5px; gap: 3px; box-shadow: 0 3px 15px #0002; }
+#zen-notes-selection-toolbar button { width: 33px; height: 33px; border-radius: 9px; }
+#zen-notes-selection-toolbar [data-action="paragraph"] { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 87px; padding: 5px 11px; margin: 0 0 0 4px; gap: 7px; font-size: 15px; background: color-mix(in srgb, var(--zen-notes-page-fg) 5%, transparent); }
+#zen-notes-selection-toolbar [data-action="paragraph"] svg { width: 15px; height: 15px; }
+.zen-notes-code-copy { position: absolute; right: 8px; top: 8px; display: grid; place-items: center; width: 29px; height: 29px; padding: 5px; border: 0; border-radius: 5px; background: color-mix(in srgb, currentColor 7%, transparent); color: var(--zen-notes-page-fg); cursor: pointer; }
+.zen-notes-code-copy svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.zen-notes-line.is-code-top { padding-right: 49px; }
+.zen-notes-line.is-code-open.is-code-editing { border-radius: 8px 8px 0 0; margin-top: 8px; padding-top: 10px; }
+.zen-notes-line.is-code-close.is-code-editing { border-radius: 0 0 8px 8px; margin-bottom: 8px; padding-bottom: 10px; }
+.zen-notes-table-wrap { display: inline-block; vertical-align: top; max-width: 100%; box-sizing: border-box; }
+.zen-notes-table { width: auto; min-width: 220px; max-width: 100%; table-layout: auto; }
+.zen-notes-table-cell { min-width: 88px; max-width: min(440px, 65vw); overflow-wrap: anywhere; }
+.zen-notes-table-wrap:is(:hover, :focus-within) .zen-notes-table-add { opacity: 0; }
+.zen-notes-table-wrap .zen-notes-table-add:is(:hover, :focus-visible) { opacity: 1; }
+.zen-notes-table-add { border-radius: 0; background: transparent; transition: opacity .08s; }
+.zen-notes-table-add svg { width: 15px; height: 15px; stroke-width: 1.6; }
+:is(#zen-notes-editor,.zen-notes-preview-editor) > .is-callout-start,
+:is(#zen-notes-editor,.zen-notes-preview-editor) > .is-callout-body { background: light-dark(#e8effb,#1c3049) !important; padding: 8px 22px !important; border: 0; margin: 0; opacity: 1; }
+:is(#zen-notes-editor,.zen-notes-preview-editor) > .is-callout-start { padding-top: 17px !important; padding-bottom: 12px !important; border-radius: 7px 7px 0 0 !important; }
+:is(#zen-notes-editor,.zen-notes-preview-editor) > .is-callout-end { padding-bottom: 17px !important; border-radius: 0 0 7px 7px !important; }
+:is(#zen-notes-editor,.zen-notes-preview-editor) > .is-callout-start.is-callout-end { border-radius: 7px !important; }
+.zen-notes-callout { display: flex; align-items: center; gap: 9px; background: none; color: light-dark(#0876e8,#83b9ff); padding: 0; }
+.zen-notes-callout svg { flex: 0 0 19px; width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.zen-notes-line.is-math-host:not(.is-math-editing) { padding: 15px 8px; margin: 8px 0; text-align: center; background: none; overflow-x: auto; font-size: 1.2em; }
+.zen-notes-line.is-math-continuation:not(.is-math-editing) { display: none; }
+.zen-notes-line.is-math-editing { font-family: ui-monospace, monospace; padding: 0 12px; border-left: 2px solid color-mix(in srgb,var(--zen-notes-accent) 45%,transparent); }
+.zen-notes-math-inline { font-family: math, serif; font-size: 1.08em; cursor: text; }
+.zen-notes-math-empty { font: italic 17px serif; opacity: .45; }
+.zen-notes-math-error { color: light-dark(#b34343,#efaaaa); font: 14px ui-monospace,monospace; }
+.zen-notes-footnote-ref { font-size: .65em; line-height: 0; vertical-align: super; color: var(--zen-notes-accent); cursor: pointer; }
+.zen-notes-footnote { font-size: .8em; opacity: .75; }
