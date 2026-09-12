@@ -1,3 +1,9 @@
+# Zen Notes 0.14.20 alpha
+
+Preserve source offsets when focusing table cells so empty formatting places the caret inside delimiters. Give callout bodies independent editing hosts and exempt their native input from whole-note selection handling. Block rendered-math selection through selectstart/mousedown and a selectionchange guard, while retaining source editing through View code.
+
+Validation: syntax and 46 jsdom tests passed, including exact underline caret offset in a cell, math selection clearing and callout native beforeinput/focus. Live Zen behavior remains unverified. Replace mod files and fully restart Zen.
+
 # Zen Notes 0.14.19 alpha
 
 Table arrow keys explicitly move/extend the caret; Shift+Enter inserts an actual editing newline, serialized as a Markdown table break. Hide Copy while code is editing. Rendered math disables text selection. Callout body supports direct plain-text editing and Enter while the title remains in source editing. Native table context menu follows Format / clipboard / Row / Column / sorting groups; all existing table actions remain, without the excluded lookup, linking or external-service entries.
