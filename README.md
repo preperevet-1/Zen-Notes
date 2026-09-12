@@ -1,3 +1,11 @@
+# Zen Notes 0.14.26 alpha — PDF export fix
+
+PDF export now uses Gecko's outputDestination=kOutputDestinationFile instead of the obsolete printToFile property. The isolated export frame permits printing, and success is only reported after a nonempty output file exists. The export picker label is now PDF (.pdf); page dimensions remain 8.5 × 11 inches.
+
+Validation: DOM regressions and mocked PDF success/failure checks. Actual printing in Zen still requires manual verification.
+
+Replace mod files and fully restart Zen after updating through Sine.
+
 # Zen Notes 0.14.25 alpha — Add to Note across Spaces
 
 Add to Note lists all stored notes rather than only visible/open tabs. Appending updates the original note file without opening, adopting or creating a tab in the source Space. Open-note creation reuses an existing tab across all stored Spaces/windows. Pending edits in an existing note editor are saved before append and its view is refreshed afterward. Existing duplicate tabs are not removed automatically.
