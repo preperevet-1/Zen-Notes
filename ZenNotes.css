@@ -665,3 +665,22 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-notes-selection-toolbar .zen-notes-text-styles button[data-text-style="h2"] { font:650 20px/1.25 system-ui !important; }
 #zen-notes-selection-toolbar .zen-notes-text-styles button[data-text-style="h3"] { font:650 18px/1.25 system-ui !important; }
 #zen-notes-selection-toolbar .zen-notes-text-styles button span { font:400 16px/1 system-ui !important; }
+
+/* 0.14.17: smaller UI, native button appearance reset, smooth block strokes. */
+#zen-notes-selection-toolbar { padding:4px !important; gap:1px !important; border-radius:17px !important; }
+#zen-notes-selection-toolbar > button { width:30px; min-width:30px; height:31px; padding:5px; }
+#zen-notes-selection-toolbar > button svg { width:17px; height:17px; }
+#zen-notes-selection-toolbar > [data-action="paragraph"] { min-width:72px; height:31px; padding:4px 8px; gap:6px; font:500 16px/1.2 system-ui !important; }
+#zen-notes-selection-toolbar > [data-action="paragraph"] svg:last-child { width:15px !important; height:15px !important; }
+#zen-notes-selection-toolbar .zen-notes-text-styles { width:190px !important; padding:5px !important; border-radius:19px !important; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button { min-height:33px !important; padding:7px 11px !important; font:400 14px/1.25 system-ui !important; border-radius:12px !important; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button[data-text-style="h1"] { font:650 18px/1.25 system-ui !important; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button[data-text-style="h2"] { font:650 17px/1.25 system-ui !important; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button[data-text-style="h3"] { font:650 16px/1.25 system-ui !important; }
+#zen-notes-page :is(.zen-notes-code-copy,.zen-notes-view-code) { appearance:none !important; -moz-appearance:none !important; border:0 !important; outline:0 !important; box-shadow:none !important; background:transparent !important; min-width:0 !important; min-height:0 !important; width:27px; height:27px; padding:4px; display:grid; place-items:center; }
+#zen-notes-page .zen-notes-view-code svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.zen-notes-view-code { transition:opacity 160ms ease; }
+.zen-notes-line:is(.is-callout-start,.is-callout-body,.is-math-host) { transition:box-shadow 180ms ease; }
+.zen-notes-line.is-math-host:not(.is-math-editing),.zen-notes-line.is-math-host:not(.is-math-editing):hover { background:transparent; border-radius:7px; box-shadow:inset 0 0 0 1px transparent; }
+.zen-notes-line.is-math-host:not(.is-math-editing):hover { box-shadow:inset 0 0 0 1px var(--zen-notes-accent); }
+@media (prefers-reduced-motion:reduce) { .zen-notes-view-code,.zen-notes-line:is(.is-callout-start,.is-callout-body,.is-math-host) { transition:none; } }

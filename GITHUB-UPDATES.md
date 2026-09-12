@@ -1,3 +1,9 @@
+# Zen Notes 0.14.17 alpha
+
+Smaller toolbar, 16px Text control, 190px submenu and 18/17/16px headings. Reset native button appearance to remove square copy borders. Replace View code labels with Lucide code-xml icons (https://lucide.dev/icons/code-xml). Smooth callout borders and math hover strokes, respecting reduced motion. Refresh cached math source before rendering; Enter at the end of a formula exits to the next line and renders immediately, while Shift+Enter continues inside the block.
+
+Validation: syntax and 37 jsdom tests passed, including typing into an empty math block and rendering after one Enter. Native Zen visuals remain unverified. Replace mod files and fully restart Zen.
+
 # Zen Notes 0.14.16 alpha — Quick Menu proportions
 
 More rounded toolbar and text menu, compact spacing, larger 20px Text control and 18px chevron. Heading options use bold 22/20/18px typography. Names and actions are unchanged; no shortcut labels. Menu typography is explicitly scoped to resist note-theme font overrides.
