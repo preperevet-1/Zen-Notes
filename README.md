@@ -1,3 +1,11 @@
+# Zen Notes 0.14.25 alpha — Add to Note across Spaces
+
+Add to Note lists all stored notes rather than only visible/open tabs. Appending updates the original note file without opening, adopting or creating a tab in the source Space. Open-note creation reuses an existing tab across all stored Spaces/windows. Pending edits in an existing note editor are saved before append and its view is refreshed afterward. Existing duplicate tabs are not removed automatically.
+
+Validation: 50 DOM checks plus cross-Space append and PDF settings tests passed. Cross-Space tests assert no tab creation, no destination mounting and unchanged active Space. Live Zen workspace behavior remains unverified.
+
+Upload archive contents to the repository root; updatedAt is advanced for Sine. Restart Zen after updating.
+
 # Zen Notes 0.14.24 alpha
 
 Remove the floating image action panel. Keep only the bottom-right resize corner, drawn with a solid gray 2px stroke and no blur, filters or shadow. Resize behavior is unchanged.
