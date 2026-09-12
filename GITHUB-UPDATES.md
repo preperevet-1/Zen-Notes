@@ -1,3 +1,11 @@
+# Zen Notes 0.14.15 alpha
+
+Empty Markdown link destination with caret inside parentheses. Narrower text-style menu with differentiated heading sizes and larger Text/chevron control. Code copy uses an unboxed icon, cancels mouse focus and announces “Added to your clipboard”. Math supports single-line display delimiters and has a separate View code action. Callouts use theme variables, grouped hover borders and View code.
+
+Validation: syntax and 35 jsdom tests passed. Native Zen visual rendering, Boost switching and toast placement have not been verified. The exact reported math rendering issue was not reproduced from the supplied screenshots; this build improves delimiter support and reading/edit interaction.
+
+Replace mod files and restart Zen. Personal notes were not modified.
+
 # Zen Notes 0.14.14 alpha — Quick Menu and formatting
 
 - Selection toolbar: Link, Bold, Italic, Underline, Strikethrough, Text.

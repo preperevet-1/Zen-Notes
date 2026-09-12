@@ -629,3 +629,27 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-notes-selection-toolbar .zen-notes-text-styles button[aria-checked="true"] { background:color-mix(in srgb,var(--zen-notes-page-fg) 6%,transparent); }
 #zen-notes-selection-toolbar .zen-notes-text-styles button:nth-child(2),#zen-notes-selection-toolbar .zen-notes-text-styles button:nth-child(3),#zen-notes-selection-toolbar .zen-notes-text-styles button:nth-child(4) { font-weight:650; }
 #zen-notes-selection-toolbar button:focus-visible { background:color-mix(in srgb,var(--notes-toolbar-accent) 25%,var(--zen-notes-page-bg)); }
+
+#zen-notes-selection-toolbar .zen-notes-text-styles { width:205px; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button { font-size:17px; min-height:42px; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button:nth-child(2) { font-size:24px; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button:nth-child(3) { font-size:21px; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button:nth-child(4) { font-size:18px; }
+#zen-notes-selection-toolbar [data-action="paragraph"] { font-size:18px; }
+#zen-notes-selection-toolbar [data-action="paragraph"] svg:last-child { width:18px; height:18px; }
+.zen-notes-code-copy { background:transparent; box-shadow:none; border:0; }
+.zen-notes-code-copy svg { display:block; overflow:visible; fill:none !important; stroke:currentColor !important; }
+.zen-notes-view-code { position:absolute; right:10px; top:8px; border:0; border-radius:5px; background:var(--zen-notes-page-bg); color:var(--zen-notes-page-fg); font:12px system-ui; padding:4px 7px; cursor:pointer; opacity:0; }
+.zen-notes-line:hover > .zen-notes-view-code,.zen-notes-view-code:focus-visible { opacity:1; }
+.zen-notes-line.is-math-host { position:relative; min-height:42px; }
+.zen-notes-line.is-math-host:hover { background:color-mix(in srgb,var(--zen-notes-accent) 9%,transparent); border-radius:7px; }
+.zen-notes-line.is-math-host math { font-family:math; color:var(--zen-notes-page-fg); }
+:is(#zen-notes-editor,.zen-notes-preview-editor) > :is(.is-callout-start,.is-callout-body) { background:color-mix(in srgb,var(--zen-notes-accent) 12%,var(--zen-notes-page-bg)) !important; color:var(--zen-notes-page-fg); position:relative; }
+.zen-notes-callout { color:var(--zen-notes-accent); padding-right:65px; }
+.zen-notes-line:is(.is-callout-start,.is-callout-body):hover { outline:1px solid var(--zen-notes-accent); outline-offset:-1px; }
+
+.zen-notes-line:is(.is-callout-start,.is-callout-body):hover { outline:none; }
+.zen-notes-line.is-callout-hover { box-shadow:inset 1px 0 var(--zen-notes-accent),inset -1px 0 var(--zen-notes-accent); }
+.zen-notes-line.is-callout-hover.is-callout-start { box-shadow:inset 1px 0 var(--zen-notes-accent),inset -1px 0 var(--zen-notes-accent),inset 0 1px var(--zen-notes-accent); }
+.zen-notes-line.is-callout-hover.is-callout-end { box-shadow:inset 1px 0 var(--zen-notes-accent),inset -1px 0 var(--zen-notes-accent),inset 0 -1px var(--zen-notes-accent); }
+.zen-notes-line.is-callout-hover > .zen-notes-view-code { opacity:1; }
