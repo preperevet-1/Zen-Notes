@@ -1,3 +1,11 @@
+# Zen Notes 0.14.18 alpha — Tables and block interaction
+
+Retain code styling during input and anchor code controls to their line. Read-only Math and Callout fields reject native focus; View code explicitly enters editing. Table repeat key events insert printable characters; compact cell padding and consistent transparent edge controls with 16px plus icons. Custom grouped table menu preserves all 16 existing actions and their disabled states.
+
+Validation: syntax and 41 jsdom tests, including code input, read-only block focus, repeat key dispatch and table menu action preservation. Native key repeat, popup placement and live Zen visuals remain unverified.
+
+Replace mod files and fully restart Zen.
+
 # Zen Notes 0.14.17 alpha
 
 Smaller toolbar, 16px Text control, 190px submenu and 18/17/16px headings. Reset native button appearance to remove square copy borders. Replace View code labels with Lucide code-xml icons (https://lucide.dev/icons/code-xml). Smooth callout borders and math hover strokes, respecting reduced motion. Refresh cached math source before rendering; Enter at the end of a formula exits to the next line and renders immediately, while Shift+Enter continues inside the block.
