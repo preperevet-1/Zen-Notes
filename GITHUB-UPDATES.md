@@ -1,3 +1,14 @@
+# Zen Notes 0.14.12 alpha — Editor stability and Undo / Redo
+
+- Capture history before native input; Redo no longer records a new state before traversing history. Restore flags reset even if restoration fails.
+- Cancel stale pointer selections when replacing the document; ignore detached lines in delayed blur handlers. Remove redundant inline DOM rebuilding on keyup.
+- Enter inserts one clean line. Shift+Enter continues supported inline formatting or list style. Code blocks retain their indentation.
+- Double-click text to enter Markdown source editing.
+
+Validation: JavaScript syntax and 25 jsdom regression tests passed, including deleting old text, 30 new edits, Undo/Redo and editing after Undo. Native Zen interaction has not been tested; the reported intermittent freeze is not reproduced in this environment.
+
+Replace the mod files and fully restart Zen. Personal notes are not included or modified.
+
 # 0.14.11 alpha
 
 Rework selection formatting and cursor placement; simplify the floating toolbar; add compact tables, unified callouts, code copying, real MathML formula rendering and smaller footnotes. Fix editor shortcut interception and stale sidebar titles. Remove redundant menu actions.
