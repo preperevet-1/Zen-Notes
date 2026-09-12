@@ -699,3 +699,8 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-notes-table-menu button:hover:not(:disabled),#zen-notes-table-menu summary:hover { background:color-mix(in srgb,var(--zen-notes-accent) 14%,transparent); }
 #zen-notes-table-menu button:disabled { opacity:.35; cursor:default; }
 #zen-notes-table-menu button[aria-checked="true"] { background:color-mix(in srgb,var(--zen-notes-accent) 12%,transparent); }
+
+.zen-notes-line.is-code-editing .zen-notes-code-copy { display:none !important; }
+.zen-notes-line.is-math-host:not(.is-math-editing),.zen-notes-line.is-math-host:not(.is-math-editing) * { user-select:none !important; -moz-user-select:none !important; }
+.zen-notes-callout-content { outline:none; white-space:pre-wrap; min-height:1.4em; cursor:text; }
+.zen-notes-table-cell { white-space:pre-wrap; }

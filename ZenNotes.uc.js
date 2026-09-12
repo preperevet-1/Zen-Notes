@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.14.18-alpha";
+  const VERSION = "0.14.19-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const NOTE_ICON_SVG = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M6 22C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V4C4 3.46957 4.21071 2.96086 4.58579 2.58579C4.96086 2.21072 5.46957 2 6 2H14C14.3166 1.99949 14.6301 2.06161 14.9225 2.18277C15.215 2.30394 15.4806 2.48176 15.704 2.706L19.292 6.294C19.5168 6.51751 19.6952 6.78335 19.8167 7.07616C19.9382 7.36898 20.0005 7.68297 20 8V20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22H6Z\" fill=\"context-fill\"/>\n<path d=\"M15.6443 3.50091C16.6399 4.43015 17.7732 5.52444 18.6889 6.49206C19.2553 7.09058 18.824 8 18 8H15C14.4477 8 14 7.55228 14 7V4.22684C14 3.36399 15.0136 2.91214 15.6443 3.50091Z\" fill=\"context-stroke\" fill-opacity=\"0.55\"/>\n<path d=\"M3 20V4C3 3.20435 3.3163 2.44151 3.87891 1.87891C4.44152 1.3163 5.20435 1 6 1H14V1.00098C14.4479 1.00046 14.8919 1.08734 15.3057 1.25879C15.7193 1.43022 16.0949 1.68198 16.4111 1.99902L19.9971 5.58496L20.1133 5.70605C20.3773 5.99585 20.5896 6.32951 20.7402 6.69238C20.9122 7.1067 21.0005 7.55143 21 8V20C21 20.7956 20.6837 21.5585 20.1211 22.1211C19.5585 22.6837 18.7957 23 18 23H6C5.20435 23 4.44152 22.6837 3.87891 22.1211C3.3163 21.5585 3 20.7956 3 20ZM5 20C5 20.2652 5.10543 20.5195 5.29297 20.707C5.48051 20.8946 5.73478 21 6 21H18C18.2652 21 18.5195 20.8946 18.707 20.707C18.8946 20.5195 19 20.2652 19 20V7.99805C19.0003 7.81344 18.9642 7.6305 18.8936 7.45996C18.8227 7.28915 18.7181 7.13331 18.5869 7.00293L14.9961 3.41211C14.8658 3.28135 14.7106 3.17712 14.54 3.10645C14.3695 3.03581 14.1865 2.99974 14.002 3H6C5.73478 3 5.4805 3.10543 5.29297 3.29297C5.10543 3.4805 5 3.73478 5 4V20Z\" fill=\"context-stroke\"/>\n<path d=\"M14 2V7C14 7.26522 14.1054 7.51957 14.2929 7.70711C14.4804 7.89464 14.7348 8 15 8H20M15 8H20\" stroke=\"context-stroke\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n</svg>\n";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
@@ -1129,6 +1129,7 @@ return module.exports; })();
     }
 
     _onLinePointerDown(event, line) {
+      if(event.target.closest?.(".zen-notes-callout-content")) return;
       if(event.target.closest?.("button")) return;
       if (event.target.closest?.(".zen-notes-table-wrap")) return;
       if(event.button===0 && (line.dataset.mathStart!==undefined || line.dataset.calloutGroup!==undefined) && !line.classList.contains('is-editing')) {event.preventDefault();return;}
@@ -1493,7 +1494,7 @@ return module.exports; })();
       this._endWholeSelection();
       if (this._activeCell !== cell) this._commitActiveLine();
       this._activeCell = cell; cell.dataset.cellEditing = "true";
-      cell.textContent = this._cellDisplay(cell.dataset.cellRaw || "");
+      cell.textContent = this._cellDisplay(cell.dataset.cellRaw || "").replace(/<br\s*\/?>/gi,"\n");
     }
 
     _storeTableCell(cell) {
@@ -1534,10 +1535,15 @@ return module.exports; })();
       const start = Number(cell.dataset.tableStart), column = Number(cell.dataset.tableColumn), model = this._tableAt(start);
       if (!model) return;
       const row = model.sourceRows.indexOf(Number(cell.dataset.tableRow));
+      if(event.key.startsWith('Arrow')) {
+        event.preventDefault();
+        const direction={ArrowLeft:'backward',ArrowRight:'forward',ArrowUp:'backward',ArrowDown:'forward'}[event.key];
+        window.getSelection()?.modify(event.shiftKey?'extend':'move',direction,['ArrowUp','ArrowDown'].includes(event.key)?'line':'character');return;
+      }
       if (event.key === "Escape") { event.preventDefault(); cell.blur(); return; }
       if (!["Tab", "Enter"].includes(event.key)) return;
       event.preventDefault();
-      if (event.key === "Enter" && event.shiftKey) { document.execCommand("insertText", false, "<br>"); return; }
+      if (event.key === "Enter" && event.shiftKey) { document.execCommand("insertText", false, "\n"); return; }
       this._commitTableCell(cell);
       let nextRow = row, nextColumn = column;
       if (event.key === "Tab") {
@@ -1614,29 +1620,28 @@ return module.exports; })();
     }
 
     _showTableMenu(source,event) {
-      document.getElementById('zen-notes-table-menu')?.remove();
-      const menu=this._html('div');menu.id='zen-notes-table-menu';menu.setAttribute('role','menu');
-      const groups=new Map([['Row',[]],['Column',[]],['Alignment',[]],['Sort',[]],['Table',[]]]);
-      for(const item of source.children) {
-        const label=item.getAttribute('label');if(!label)continue;
-        const group=label.includes('Row')?'Row':label.includes('Column')?'Column':label.startsWith('Align')?'Alignment':label.startsWith('Sort')?'Sort':'Table';groups.get(group).push(item);
+      const originals=Array.from(source.children).filter(item=>item.getAttribute('label'));
+      const selection=this._bodySelection();source.replaceChildren();
+      const menus=this._editingMenus(selection);source.append(...menus);
+      menus[1].disabled=true;menus[2].disabled=true;
+      const separator=()=>source.append(document.createXULElement('menuseparator'));
+      separator();
+      for(const [label,command]of [['Cut','cut'],['Copy','copy'],['Paste','paste'],['Paste as plain text','pasteNoFormatting'],['Select All','selectAll']]) {
+        const item=this._menuItem(label,()=>{if(command==='selectAll')this._selectAll();else if(command==='pasteNoFormatting')goDoCommand('cmd_pasteNoFormatting');else goDoCommand('cmd_'+command);});
+        if(['cut','copy'].includes(command))item.disabled=!selection || selection.start===selection.end;source.append(item);
       }
-      const close=()=>{menu.remove();this._contextMenuOpen=false;document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape,true);};
-      const outside=e=>{if(!menu.contains(e.target))close();};
-      const escape=e=>{if(e.key==='Escape'){e.preventDefault();close();}};
-      for(const [name,items]of groups) {
-        const section=this._html('details'),label=this._html('summary');label.textContent=name;section.append(label);
-        if(name==='Table')section.open=true;
-        for(const original of items){
-          const button=this._html('button');button.type='button';button.textContent=original.getAttribute('label');button.disabled=original.disabled;
-          if(original.getAttribute('checked')==='true')button.setAttribute('aria-checked','true');
-          button.addEventListener('click',()=>{close();original.dispatchEvent(new Event('command'));});section.append(button);
-        }menu.append(section);
+      separator();
+      for(const group of ['Row','Column']) {
+        const menu=document.createXULElement('menu');menu.setAttribute('label',group);const popup=document.createXULElement('menupopup');
+        let category='';
+        for(const item of originals.filter(item=>item.getAttribute('label').includes(group)||(group==='Column'&&item.getAttribute('label').startsWith('Align')))) {
+          const next=item.getAttribute('label').split(' ')[0];if(category&&next!==category)popup.append(document.createXULElement('menuseparator'));category=next;popup.append(item);
+        }menu.append(popup);source.append(menu);
       }
-      menu.addEventListener('mousedown',e=>e.preventDefault());
-      document.getElementById('zen-notes-page').append(menu);menu.style.left=event.clientX+'px';menu.style.top=event.clientY+'px';
-      const bounds=menu.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(event.clientX,window.innerWidth-bounds.width-8))+'px';menu.style.top=Math.max(8,Math.min(event.clientY,window.innerHeight-bounds.height-8))+'px';
-      document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape,true);
+      separator();
+      for(const item of originals.filter(item=>item.getAttribute('label').startsWith('Sort')))source.append(item);
+      separator();source.append(...originals.filter(item=>item.getAttribute('label')==='Delete Table'));
+      source.openPopupAtScreen(event.screenX,event.screenY,true);
     }
 
     _codeGroups(raws) {
@@ -1811,6 +1816,23 @@ return module.exports; })();
           line.innerHTML = line.classList.contains('is-math-host') ? this._renderMath(line.dataset.mathSource,true) : ''; if(line.classList.contains('is-math-host')) this._viewCodeButton(line); return;
         }
         line.innerHTML = `<span class="zen-notes-math-source">${this._escape(raw) || '<br/>'}</span>`; return;
+      }
+      if(line.classList.contains('is-callout-body')) {
+        const content=this._html('div');content.className='zen-notes-callout-content';this._setPlainEditable(content);
+        content.textContent=raw.replace(/^>\s?/, '');
+        content.addEventListener('pointerdown',event=>event.stopPropagation());
+        content.addEventListener('beforeinput',()=>this._recordHistory());
+        content.addEventListener('input',event=>{event.stopPropagation();line.dataset.raw='> '+content.textContent.replace(/\n/g,'\n> ');this._queueSave();});
+        content.addEventListener('keydown',event=>{
+          if(event.metaKey || event.ctrlKey)return;
+          event.stopPropagation();
+          if(event.key==='Enter'){
+            event.preventDefault();this._recordHistory();
+            const offset=this._caretOffset(content),text=content.textContent;
+            line.dataset.raw='> '+text.slice(0,offset);const next=this._makeLine('> '+text.slice(offset));line.after(next);this._renderAllLines();
+            const target=next.querySelector('.zen-notes-callout-content');target.focus();this._setCaret(target,0);this._queueSave();
+          }
+        });line.replaceChildren(content);return;
       }
       const footnote = raw.match(/^\[\^([^\]]+)\]:\s*(.*)$/);
       if (footnote) { line.innerHTML = `<small class="zen-notes-footnote"><sup>${this._escape(footnote[1])}</sup> ${this._inline(footnote[2])}</small>`; return; }

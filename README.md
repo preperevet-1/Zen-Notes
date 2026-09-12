@@ -1,3 +1,9 @@
+# Zen Notes 0.14.19 alpha
+
+Table arrow keys explicitly move/extend the caret; Shift+Enter inserts an actual editing newline, serialized as a Markdown table break. Hide Copy while code is editing. Rendered math disables text selection. Callout body supports direct plain-text editing and Enter while the title remains in source editing. Native table context menu follows Format / clipboard / Row / Column / sorting groups; all existing table actions remain, without the excluded lookup, linking or external-service entries.
+
+Validation: syntax and 43 jsdom tests passed. Native browser caret movement, clipboard commands and visual behavior require live Zen validation. Replace the mod files and fully restart Zen.
+
 # Zen Notes 0.14.18 alpha — Tables and block interaction
 
 Retain code styling during input and anchor code controls to their line. Read-only Math and Callout fields reject native focus; View code explicitly enters editing. Table repeat key events insert printable characters; compact cell padding and consistent transparent edge controls with 16px plus icons. Custom grouped table menu preserves all 16 existing actions and their disabled states.
