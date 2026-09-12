@@ -1,3 +1,9 @@
+# Zen Notes 0.14.16 alpha — Quick Menu proportions
+
+More rounded toolbar and text menu, compact spacing, larger 20px Text control and 18px chevron. Heading options use bold 22/20/18px typography. Names and actions are unchanged; no shortcut labels. Menu typography is explicitly scoped to resist note-theme font overrides.
+
+Validation: JavaScript syntax and DOM regression checks. Live Zen appearance remains unverified.
+
 # Zen Notes 0.14.15 alpha
 
 Empty Markdown link destination with caret inside parentheses. Narrower text-style menu with differentiated heading sizes and larger Text/chevron control. Code copy uses an unboxed icon, cancels mouse focus and announces “Added to your clipboard”. Math supports single-line display delimiters and has a separate View code action. Callouts use theme variables, grouped hover borders and View code.

@@ -653,3 +653,15 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 .zen-notes-line.is-callout-hover.is-callout-start { box-shadow:inset 1px 0 var(--zen-notes-accent),inset -1px 0 var(--zen-notes-accent),inset 0 1px var(--zen-notes-accent); }
 .zen-notes-line.is-callout-hover.is-callout-end { box-shadow:inset 1px 0 var(--zen-notes-accent),inset -1px 0 var(--zen-notes-accent),inset 0 -1px var(--zen-notes-accent); }
 .zen-notes-line.is-callout-hover > .zen-notes-view-code { opacity:1; }
+
+/* 0.14.16: compact reference proportions; UI typography independent of note Boosts. */
+#zen-notes-selection-toolbar { padding:5px !important; gap:2px !important; border-radius:19px !important; box-shadow:0 5px 18px #0002; }
+#zen-notes-selection-toolbar > button { box-sizing:border-box; width:34px; min-width:34px; height:36px; padding:6px; border-radius:12px; }
+#zen-notes-selection-toolbar > [data-action="paragraph"] { width:auto; min-width:88px; height:36px; padding:5px 10px; gap:8px; margin-left:3px; border-radius:13px; font:500 20px/1.2 system-ui !important; }
+#zen-notes-selection-toolbar > [data-action="paragraph"] svg:last-child { width:18px !important; height:18px !important; stroke-width:1.8; flex:none; }
+#zen-notes-selection-toolbar .zen-notes-text-styles { box-sizing:border-box; width:220px !important; padding:6px !important; border-radius:22px !important; box-shadow:0 6px 20px #0002; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button { box-sizing:border-box; min-height:39px !important; height:auto; padding:8px 13px !important; border-radius:15px !important; font:400 17px/1.25 system-ui !important; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button[data-text-style="h1"] { font:650 22px/1.25 system-ui !important; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button[data-text-style="h2"] { font:650 20px/1.25 system-ui !important; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button[data-text-style="h3"] { font:650 18px/1.25 system-ui !important; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button span { font:400 16px/1 system-ui !important; }
