@@ -1,3 +1,9 @@
+# Zen Notes 0.14.22 alpha — Image controls
+
+Top-right rounded two-icon panel for Preview and View code. Bottom-right curved resize grip replaces the centered line. Corner dragging combines horizontal and vertical movement while retaining aspect ratio. Hover controls use theme colors. updatedAt advanced for Sine.
+
+Validation: JavaScript syntax; live Zen appearance remains unverified.
+
 # Zen Notes 0.14.21 alpha — Tags, images and PDF export
 
 Fix unchecked alignment menu items. Theme-colored hashtag pills. PDF Letter option in Export (native Gecko printing, 8.5 × 11 inches). Save Image in image context menu. Rounded images with hover outline, Preview and View code controls, minimal bottom resize handle and right/bottom edge dragging. Preview closes with Escape. Updated updatedAt timestamp for Sine update detection; GitHub language override included.

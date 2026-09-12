@@ -719,3 +719,13 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-notes-image-preview button { position:absolute; right:20px; top:16px; border:0; background:transparent; color:white; font:32px system-ui; cursor:pointer; }
 
 .zen-notes-image-actions svg { width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round; }
+
+/* 0.14.22 image controls: top-right pill and bottom-right curved grip. */
+#zen-notes-page .zen-notes-image-actions { top:10px; right:10px; gap:4px; padding:5px; border-radius:13px; line-height:1; box-shadow:0 2px 8px #00000014; z-index:2; }
+#zen-notes-page .zen-notes-image-actions button { box-sizing:border-box; display:grid; place-items:center; width:30px; height:30px; min-width:0 !important; min-height:0 !important; padding:4px; border-radius:8px; outline:none; box-shadow:none; cursor:pointer; }
+#zen-notes-page .zen-notes-image-actions button:hover { background:color-mix(in srgb,var(--zen-notes-page-fg) 6%,transparent) !important; }
+#zen-notes-page .zen-notes-image-actions svg { width:21px; height:21px; stroke-width:1.8; }
+.zen-notes-image-frame:focus-within .zen-notes-image-actions { opacity:1; }
+#zen-notes-page .zen-notes-image-resize { top:auto; left:auto; right:8px; bottom:8px; width:23px; height:23px; padding:0; cursor:nwse-resize; opacity:0; transition:opacity 150ms ease; z-index:2; }
+#zen-notes-page .zen-notes-image-resize::after { position:absolute; top:auto; left:auto; right:3px; bottom:3px; width:13px; height:13px; margin:0; box-sizing:border-box; background:none; border:0; border-right:2px solid color-mix(in srgb,var(--zen-notes-page-fg) 65%,transparent); border-bottom:2px solid color-mix(in srgb,var(--zen-notes-page-fg) 65%,transparent); border-radius:0 0 6px 0; }
+#zen-notes-page .zen-notes-image-frame:hover .zen-notes-image-resize { opacity:1; }
