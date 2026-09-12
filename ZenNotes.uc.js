@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.14.20-alpha";
+  const VERSION = "0.14.21-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const NOTE_ICON_SVG = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M6 22C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V4C4 3.46957 4.21071 2.96086 4.58579 2.58579C4.96086 2.21072 5.46957 2 6 2H14C14.3166 1.99949 14.6301 2.06161 14.9225 2.18277C15.215 2.30394 15.4806 2.48176 15.704 2.706L19.292 6.294C19.5168 6.51751 19.6952 6.78335 19.8167 7.07616C19.9382 7.36898 20.0005 7.68297 20 8V20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22H6Z\" fill=\"context-fill\"/>\n<path d=\"M15.6443 3.50091C16.6399 4.43015 17.7732 5.52444 18.6889 6.49206C19.2553 7.09058 18.824 8 18 8H15C14.4477 8 14 7.55228 14 7V4.22684C14 3.36399 15.0136 2.91214 15.6443 3.50091Z\" fill=\"context-stroke\" fill-opacity=\"0.55\"/>\n<path d=\"M3 20V4C3 3.20435 3.3163 2.44151 3.87891 1.87891C4.44152 1.3163 5.20435 1 6 1H14V1.00098C14.4479 1.00046 14.8919 1.08734 15.3057 1.25879C15.7193 1.43022 16.0949 1.68198 16.4111 1.99902L19.9971 5.58496L20.1133 5.70605C20.3773 5.99585 20.5896 6.32951 20.7402 6.69238C20.9122 7.1067 21.0005 7.55143 21 8V20C21 20.7956 20.6837 21.5585 20.1211 22.1211C19.5585 22.6837 18.7957 23 18 23H6C5.20435 23 4.44152 22.6837 3.87891 22.1211C3.3163 21.5585 3 20.7956 3 20ZM5 20C5 20.2652 5.10543 20.5195 5.29297 20.707C5.48051 20.8946 5.73478 21 6 21H18C18.2652 21 18.5195 20.8946 18.707 20.707C18.8946 20.5195 19 20.2652 19 20V7.99805C19.0003 7.81344 18.9642 7.6305 18.8936 7.45996C18.8227 7.28915 18.7181 7.13331 18.5869 7.00293L14.9961 3.41211C14.8658 3.28135 14.7106 3.17712 14.54 3.10645C14.3695 3.03581 14.1865 2.99974 14.002 3H6C5.73478 3 5.4805 3.10543 5.29297 3.29297C5.10543 3.4805 5 3.73478 5 4V20Z\" fill=\"context-stroke\"/>\n<path d=\"M14 2V7C14 7.26522 14.1054 7.51957 14.2929 7.70711C14.4804 7.89464 14.7348 8 15 8H20M15 8H20\" stroke=\"context-stroke\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n</svg>\n";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
@@ -559,19 +559,48 @@ return module.exports; })();
       const imageLine = frame.closest(".zen-notes-line");
       if (imageLine) imageLine._suppressMouseFocusUntil = Date.now() + 1000;
       event.preventDefault(); event.stopImmediatePropagation();
-      const handle = event.target.closest?.(".zen-notes-image-resize");
+      const action=event.target.closest?.('[data-image-action]')?.dataset.imageAction;
+      if(action==='preview'){this._previewImage(frame.querySelector('img'));return;}
+      if(action==='source'){
+        const match=this._imageMatches(imageLine.dataset.raw||'')[Number(frame.dataset.imageIndex)];
+        imageLine._suppressMouseFocusUntil=0;this._endWholeSelection();this._focusLine(imageLine,match?.index||0);return;
+      }
+      const rect=frame.getBoundingClientRect();
+      const edge=Math.abs(event.clientX-rect.right)<7 || Math.abs(event.clientY-rect.bottom)<7;
+      const handle = event.target.closest?.(".zen-notes-image-resize") || (edge?frame:null);
       if (!handle) return;
       const line = frame.closest(".zen-notes-line"), index = Number(frame.dataset.imageIndex), id = this.currentNoteId;
-      const start = event.clientX, width = frame.getBoundingClientRect().width, original = line.dataset.raw;
+      const start = event.clientX, startY=event.clientY,width = frame.getBoundingClientRect().width, original = line.dataset.raw;
+      const bottom=Math.abs(event.clientY-rect.bottom)<10,ratio=rect.width/Math.max(1,rect.height);
+      const delta=e=>bottom?(e.clientY-startY)*ratio:e.clientX-start;
       this._recordHistory(); handle.setPointerCapture?.(event.pointerId);
-      const move = e => { if (this.currentNoteId === id && line.isConnected) frame.style.width = `${Math.min(1600, Math.max(64, width + e.clientX - start))}px`; };
+      const move = e => { if (this.currentNoteId === id && line.isConnected) frame.style.width = `${Math.min(1600, Math.max(64, width + delta(e)))}px`; };
       const finish = e => {
         if (imageLine) imageLine._suppressMouseFocusUntil = Date.now() + 600;
         handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", finish); handle.removeEventListener("pointercancel", finish);
         if (this.currentNoteId !== id || line.dataset.raw !== original) return;
-        if (e.type === "pointercancel") frame.style.width = `${width}px`; else this._resizeImage(line, index, width + e.clientX - start);
+        if (e.type === "pointercancel") frame.style.width = `${width}px`; else this._resizeImage(line, index, width + delta(e));
       };
       handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", finish); handle.addEventListener("pointercancel", finish);
+    }
+
+    _previewImage(img) {
+      document.getElementById('zen-notes-image-preview')?.remove();
+      const overlay=this._html('div');overlay.id='zen-notes-image-preview';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-label','Image preview');overlay.tabIndex=-1;
+      const image=this._html('img');image.src=img.src;image.alt=img.alt;
+      const close=this._html('button');close.textContent='×';close.setAttribute('aria-label','Close preview');
+      const previous=document.activeElement,finish=()=>{overlay.remove();previous?.focus?.();};close.addEventListener('click',finish);
+      overlay.addEventListener('click',event=>{if(event.target===overlay)finish();});overlay.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Escape')finish();if(event.key==='Tab'){event.preventDefault();close.focus();}});
+      overlay.append(image,close);document.documentElement.append(overlay);close.focus();
+    }
+
+    async _downloadImage(img) {
+      try {
+        const response=await fetch(img.src);if(!response.ok)throw new Error('Image download failed');
+        const blob=await response.blob(),extension=({'image/jpeg':'jpg','image/png':'png','image/gif':'gif','image/webp':'webp','image/svg+xml':'svg'})[blob.type]||'png';
+        const path=await this._pickFile(Ci.nsIFilePicker.modeSave,'Save Image',extension);if(!path)return;
+        await FileIO.write(path,new Uint8Array(await blob.arrayBuffer()));this._showNotice('Image saved');
+      }catch(error){console.error(LOG,error);this._showNotice('Could not save image');}
     }
 
     _notePath(id) { return Paths.join(this.storageDir, `${id}.md`); }
@@ -1620,7 +1649,7 @@ return module.exports; })();
         if (!entry) { popup.append(document.createXULElement("menuseparator")); continue; }
         const [label, action] = entry, item = this._menuItem(label, () => this._tableAction(start, row, column, action));
         item.disabled = (action === "delete-row" && row === 0) || (action === "row-before" && row === 0) || (action === "delete-column" && model.columns === 1) || (action === "move-row-up" && row <= 1) || (action === "move-row-down" && (row === 0 || row === model.rows.length - 1)) || (action === "move-column-left" && column === 0) || (action === "move-column-right" && column === model.columns - 1);
-        if (action.startsWith("align-")) { item.setAttribute("type", "radio"); item.setAttribute("checked", String(model.align[column] === action.slice(6))); }
+        if (action.startsWith("align-")) { item.setAttribute("type", "radio"); if(model.align[column] === action.slice(6)) item.setAttribute("checked", "true"); else item.removeAttribute("checked"); }
         popup.append(item);
       }
       return true;
@@ -1967,7 +1996,7 @@ return module.exports; })();
         const index = imageIndex++;
         if (!/^(?:https?:\/\/|data:image\/(?:png|jpeg|gif|webp);base64,)/i.test(url)) return token(`<span class="zen-notes-embed">${cleanAlt || "Image: unsupported URL"}</span>`);
         if (exporting) return token(`<img class="zen-notes-image" src="${url}" alt="${cleanAlt}"${width ? ` width="${width}"` : ""}/>`);
-        return token(`<span class="zen-notes-image-frame" contenteditable="false" data-image-index="${index}"${width ? ` style="width:${Math.max(64, Math.min(1600, width))}px"` : ""}><img class="zen-notes-image" draggable="false" src="${url}" alt="${cleanAlt}" loading="lazy" referrerpolicy="no-referrer"/><span class="zen-notes-image-resize" aria-label="Resize image"></span></span>`);
+        return token(`<span class="zen-notes-image-frame" contenteditable="false" data-image-index="${index}"${width ? ` style="width:${Math.max(64, Math.min(1600, width))}px"` : ""}><img class="zen-notes-image" draggable="false" src="${url}" alt="${cleanAlt}" loading="lazy" referrerpolicy="no-referrer"/><span class="zen-notes-image-actions"><button type="button" data-image-action="preview" title="Preview" aria-label="Preview image"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6M7 10h6m-3-3v6"/></svg></button><button type="button" data-image-action="source" title="View code" aria-label="View image code"><svg viewBox="0 0 24 24"><path d="m18 16 4-4-4-4M6 8l-4 4 4 4m8.5-12-5 16"/></svg></button></span><span class="zen-notes-image-resize" aria-label="Resize image"></span></span>`);
       });
       text = text.replace(/\[Source: ([^\]]*)\]\((?:&lt;)?(https?:[^)]+)\)/g, (_, label, target) => {
         const href = target.replace(/^&lt;|&gt;$/g, "");
@@ -1981,6 +2010,7 @@ return module.exports; })();
       });
       text = text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, alias) => token(`<span class="zen-notes-wikilink" data-target="${target.replace(/"/g, "&quot;")}">${alias || target}</span>`));
       text = text.replace(/&lt;(https?:\/\/[^\s]+?)&gt;/g, (_, href) => token(`<span class="zen-notes-link" data-href="${href}">${href}</span>`));
+      text=text.replace(/(^|[\s(])#([\p{L}_][\p{L}\p{N}_-]*)/gu,(_,prefix,tag)=>prefix+token(`<span class="zen-notes-tag">#${tag}</span>`));
       // Existing Markdown links and code are already stashed: only linkify plain URLs.
       text = text.replace(/https?:\/\/[^\s<>\uE000\uE001]+/g, match => {
         let href = match.replace(/[.,!?;:]+$/, "");
@@ -2703,19 +2733,37 @@ function run(argv) {
       picker.init(window.browsingContext, "Export Note", Ci.nsIFilePicker.modeSave);
       picker.appendFilter("Markdown (.md)", "*.md");
       picker.appendFilter("HTML (.html)", "*.html");
+      picker.appendFilter("PDF — Letter (.pdf)", "*.pdf");
       picker.defaultExtension = "";
       picker.defaultString = (note.title || "Note").replace(/[\\/:*?"<>|]/g, "-");
       const result = await new Promise(resolve => picker.open(resolve));
       if (![Ci.nsIFilePicker.returnOK, Ci.nsIFilePicker.returnReplace].includes(result)) return;
       let path = picker.file.path;
-      const extension = /\.html?$/i.test(path) ? "html" : /\.md$/i.test(path) ? "md" : picker.filterIndex === 1 ? "html" : "md";
-      if (!/\.(?:md|html?)$/i.test(path)) {
+      const extension = /\.pdf$/i.test(path) || picker.filterIndex===2 ? "pdf" : /\.html?$/i.test(path) ? "html" : /\.md$/i.test(path) ? "md" : picker.filterIndex === 1 ? "html" : "md";
+      if (!/\.(?:md|html?|pdf)$/i.test(path)) {
         path += `.${extension}`;
         if (await FileIO.exists(path) && !Services.prompt.confirm(window, "Replace file?", `Replace ${path}?`)) return;
       }
+      if(extension==="pdf"){await this._exportPDF(data,path);return;}
       let text = `# ${data.title}\n\n${data.body}`;
       if (extension === "html") text = this._exportHTML(data);
       await FileIO.writeUTF8(path, text);
+    }
+
+    async _exportPDF(data,path) {
+      const frame=this._html('iframe');frame.setAttribute('sandbox','allow-same-origin');
+      frame.style.cssText='position:fixed;left:-20000px;top:0;width:816px;height:1056px;';
+      try {
+        const loaded=new Promise((resolve,reject)=>{frame.onload=resolve;frame.onerror=()=>reject(new Error('Could not prepare PDF'));});
+        frame.srcdoc=this._exportHTML(data).replace('</style>','@page{size:letter;margin:0.5in}body{margin:0;padding:0;max-width:none}img,pre,blockquote{break-inside:avoid}</style>');
+        document.documentElement.append(frame);await loaded;
+        await Promise.all(Array.from(frame.contentDocument.images,img=>img.decode().catch(()=>{})));
+        const settings=Cc['@mozilla.org/gfx/printsettings-service;1'].getService(Ci.nsIPrintSettingsService).newPrintSettings;
+        settings.printSilent=true;settings.printToFile=true;settings.outputFormat=Ci.nsIPrintSettings.kOutputFormatPDF;settings.toFileName=path;
+        settings.paperSizeUnit=Ci.nsIPrintSettings.kPaperSizeInches;settings.paperWidth=8.5;settings.paperHeight=11;settings.paperName='na_letter';
+        for(const key of ['headerStrLeft','headerStrCenter','headerStrRight','footerStrLeft','footerStrCenter','footerStrRight'])settings[key]='';
+        await frame.browsingContext.print(settings);this._showNotice('PDF exported');
+      }catch(error){console.error(LOG,error);this._showNotice('Could not export PDF');throw error;}finally{frame.remove();}
     }
 
     _exportHTML(data) {
@@ -3420,6 +3468,7 @@ function run(argv) {
         const line = frame.closest(".zen-notes-line"), index = Number(frame.dataset.imageIndex);
         const noteId = this.currentNoteId, raw = line.dataset.raw;
         popup.append(this._menuItem("Copy Image", () => this._copyNoteImage(frame.querySelector("img"))));
+        popup.append(this._menuItem("Save Image…", () => this._downloadImage(frame.querySelector("img"))));
         popup.append(document.createXULElement("menuseparator"));
         popup.append(this._menuItem("Delete Image", () => {
           if (this.currentNoteId !== noteId || !line.isConnected || line.dataset.raw !== raw) return;

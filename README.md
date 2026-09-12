@@ -1,3 +1,11 @@
+# Zen Notes 0.14.21 alpha — Tags, images and PDF export
+
+Fix unchecked alignment menu items. Theme-colored hashtag pills. PDF Letter option in Export (native Gecko printing, 8.5 × 11 inches). Save Image in image context menu. Rounded images with hover outline, Preview and View code controls, minimal bottom resize handle and right/bottom edge dragging. Preview closes with Escape. Updated updatedAt timestamp for Sine update detection; GitHub language override included.
+
+Validation: 49 DOM regressions plus a mocked native PDF settings/output-path test passed. Actual PDF creation, image downloads and native Zen visual interaction have not been verified in this environment. PDF export uses the HTML exporter; complex Markdown layout may differ from the editor.
+
+Upload archive contents to the repository root, including theme.json. Then check for updates in Sine and fully restart Zen. Personal notes were not changed.
+
 # Zen Notes 0.14.20 alpha
 
 Preserve source offsets when focusing table cells so empty formatting places the caret inside delimiters. Give callout bodies independent editing hosts and exempt their native input from whole-note selection handling. Block rendered-math selection through selectstart/mousedown and a selectionchange guard, while retaining source editing through View code.

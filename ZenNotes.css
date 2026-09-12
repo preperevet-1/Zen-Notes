@@ -704,3 +704,18 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 .zen-notes-line.is-math-host:not(.is-math-editing),.zen-notes-line.is-math-host:not(.is-math-editing) * { user-select:none !important; -moz-user-select:none !important; }
 .zen-notes-callout-content { outline:none; white-space:pre-wrap; min-height:1.4em; cursor:text; }
 .zen-notes-table-cell { white-space:pre-wrap; }
+
+.zen-notes-tag { color:var(--zen-notes-accent); background:color-mix(in srgb,var(--zen-notes-accent) 10%,transparent); border-radius:999px; padding:2px 8px; }
+#zen-notes-page .zen-notes-image { border-radius:14px !important; }
+.zen-notes-image-frame { border-radius:14px; transition:box-shadow 150ms ease; }
+.zen-notes-image-frame:hover { box-shadow:0 0 0 1px var(--zen-notes-accent); }
+.zen-notes-image-actions { position:absolute; right:7px; top:7px; display:flex; padding:3px; border-radius:10px; background:var(--zen-notes-page-bg); box-shadow:0 2px 8px #0002; opacity:0; transition:opacity 150ms ease; }
+.zen-notes-image-frame:hover .zen-notes-image-actions { opacity:1; }
+#zen-notes-page .zen-notes-image-actions button { appearance:none !important; border:0 !important; background:transparent !important; color:var(--zen-notes-page-fg); width:28px; height:28px; padding:3px; font:16px system-ui !important; }
+#zen-notes-page .zen-notes-image-resize { left:calc(50% - 20px); right:auto; bottom:2px; width:40px; height:10px; border:0; background:transparent; cursor:ns-resize; }
+.zen-notes-image-resize::after { content:''; display:block; height:3px; margin-top:4px; border-radius:3px; background:var(--zen-notes-accent); }
+#zen-notes-image-preview { position:fixed; inset:0; z-index:2147483647; background:#000d; display:flex; justify-content:center; align-items:center; }
+#zen-notes-image-preview img { max-width:94vw; max-height:94vh; object-fit:contain; border-radius:12px; }
+#zen-notes-image-preview button { position:absolute; right:20px; top:16px; border:0; background:transparent; color:white; font:32px system-ui; cursor:pointer; }
+
+.zen-notes-image-actions svg { width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round; }
