@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.14.12-alpha";
+  const VERSION = "0.14.13-alpha";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const NOTE_ICON_SVG = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M6 22C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V4C4 3.46957 4.21071 2.96086 4.58579 2.58579C4.96086 2.21072 5.46957 2 6 2H14C14.3166 1.99949 14.6301 2.06161 14.9225 2.18277C15.215 2.30394 15.4806 2.48176 15.704 2.706L19.292 6.294C19.5168 6.51751 19.6952 6.78335 19.8167 7.07616C19.9382 7.36898 20.0005 7.68297 20 8V20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22H6Z\" fill=\"context-fill\"/>\n<path d=\"M15.6443 3.50091C16.6399 4.43015 17.7732 5.52444 18.6889 6.49206C19.2553 7.09058 18.824 8 18 8H15C14.4477 8 14 7.55228 14 7V4.22684C14 3.36399 15.0136 2.91214 15.6443 3.50091Z\" fill=\"context-stroke\" fill-opacity=\"0.55\"/>\n<path d=\"M3 20V4C3 3.20435 3.3163 2.44151 3.87891 1.87891C4.44152 1.3163 5.20435 1 6 1H14V1.00098C14.4479 1.00046 14.8919 1.08734 15.3057 1.25879C15.7193 1.43022 16.0949 1.68198 16.4111 1.99902L19.9971 5.58496L20.1133 5.70605C20.3773 5.99585 20.5896 6.32951 20.7402 6.69238C20.9122 7.1067 21.0005 7.55143 21 8V20C21 20.7956 20.6837 21.5585 20.1211 22.1211C19.5585 22.6837 18.7957 23 18 23H6C5.20435 23 4.44152 22.6837 3.87891 22.1211C3.3163 21.5585 3 20.7956 3 20ZM5 20C5 20.2652 5.10543 20.5195 5.29297 20.707C5.48051 20.8946 5.73478 21 6 21H18C18.2652 21 18.5195 20.8946 18.707 20.707C18.8946 20.5195 19 20.2652 19 20V7.99805C19.0003 7.81344 18.9642 7.6305 18.8936 7.45996C18.8227 7.28915 18.7181 7.13331 18.5869 7.00293L14.9961 3.41211C14.8658 3.28135 14.7106 3.17712 14.54 3.10645C14.3695 3.03581 14.1865 2.99974 14.002 3H6C5.73478 3 5.4805 3.10543 5.29297 3.29297C5.10543 3.4805 5 3.73478 5 4V20Z\" fill=\"context-stroke\"/>\n<path d=\"M14 2V7C14 7.26522 14.1054 7.51957 14.2929 7.70711C14.4804 7.89464 14.7348 8 15 8H20M15 8H20\" stroke=\"context-stroke\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n</svg>\n";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
@@ -976,14 +976,7 @@ return module.exports; })();
           this._replaceBodySelection(text, selected);
         }
       }, true);
-      page.addEventListener("copy", event => {
-        const selected = window.getSelection()?.toString() || "";
-        const expanded = this._expandImages(selected);
-        if (expanded !== selected && event.clipboardData) {
-          event.clipboardData.setData("text/plain", expanded);
-          event.preventDefault();
-        }
-      });
+      page.addEventListener("copy", event => this._copySelection(event));
       page.addEventListener("contextmenu", event => this._editorContextMenu(event));
       page.addEventListener("pointerdown", event => this._imagePointer(event), true);
       editor.setAttribute("data-placeholder", "Your best ideas here…");
@@ -994,7 +987,7 @@ return module.exports; })();
         if (!editor.hasAttribute("contenteditable")) return;
         const selected = this._bodySelection();
         if (selected && selected.start !== selected.end && event.clipboardData) {
-          event.preventDefault(); event.clipboardData.setData("text/plain", window.getSelection().toString());
+          this._copySelection(event);
           this._replaceBodySelection("", selected);
         }
       });
@@ -1191,7 +1184,27 @@ return module.exports; })();
       this._cancelMouseSelection?.();
       const editor = line.parentElement, id = this.currentNoteId;
       const startX = event.clientX, startY = event.clientY;
-      let prepared = false, anchor;
+      let prepared = false, anchor, frame = null, pointer = null;
+      const scroll = editor.closest('.zen-notes-page-scroll');
+      const extend = () => {
+        if (!pointer || !prepared) return;
+        const bounds=(scroll || editor).getBoundingClientRect();
+        const y=Math.max(bounds.top+2,Math.min(bounds.bottom-2,pointer.clientY));
+        const x=Math.max(bounds.left+2,Math.min(bounds.right-2,pointer.clientX));
+        const position=document.caretPositionFromPoint?.(x,y);
+        if(position && editor.contains(position.offsetNode) && anchor.node.isConnected)
+          window.getSelection().setBaseAndExtent(anchor.node,anchor.offset,position.offsetNode,position.offset);
+      };
+      const tick = () => {
+        frame=null;
+        if(!prepared || !pointer || this.currentNoteId!==id || !line.isConnected) return;
+        if(scroll) {
+          const b=scroll.getBoundingClientRect(), edge=40;
+          const speed=pointer.clientY<b.top+edge ? -Math.min(24,(b.top+edge-pointer.clientY)/2) : pointer.clientY>b.bottom-edge ? Math.min(24,(pointer.clientY-b.bottom+edge)/2) : 0;
+          if(speed) scroll.scrollTop+=speed;
+        }
+        extend(); frame=window.requestAnimationFrame(tick);
+      };
       const prepare = () => {
         if (prepared) return;
         this._mouseSelecting = true;
@@ -1205,33 +1218,62 @@ return module.exports; })();
       const move = e => {
         if (!(e.buttons & 1) || this.currentNoteId !== id || !line.isConnected) { finish(); return; }
         if (!prepared && Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
-        e.preventDefault(); prepare();
-        let position = document.caretPositionFromPoint?.(e.clientX, e.clientY);
-        if (!position || !editor.contains(position.offsetNode)) {
-          const bounds = editor.getBoundingClientRect();
-          position = document.caretPositionFromPoint?.(Math.max(bounds.left + 1, Math.min(bounds.right - 1, e.clientX)), Math.max(bounds.top + 1, Math.min(bounds.bottom - 1, e.clientY)));
-        }
-        if (position && editor.contains(position.offsetNode)) window.getSelection().setBaseAndExtent(anchor.node, anchor.offset, position.offsetNode, position.offset);
+        e.preventDefault(); prepare(); pointer=e; extend();
+        if(frame===null) frame=window.requestAnimationFrame(tick);
       };
       const finish = e => {
+        if(frame!==null) window.cancelAnimationFrame(frame); frame=null; pointer=null;
         window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", finish, true); window.removeEventListener("pointercancel", finish, true);
         this._mouseSelecting = false; this._cancelMouseSelection = null;
         if (e?.type === "pointerup" && this.currentNoteId === id && line.isConnected) {
           if (!prepared) {
-            const now = Date.now(), double = this._lastNoteClick?.line === line && now - this._lastNoteClick.time < 400;
-            this._lastNoteClick = { line, time: now };
-            if (double) {
-              line._suppressMouseFocusUntil = 0;
-              this._endWholeSelection();
-              this._focusLine(line, rawOffset);
-            } else if (clickAction) clickAction();
-            else { line._suppressMouseFocusUntil = 0; this._focusLine(line, rawOffset); }
+            const now=Date.now(), previous=this._lastNoteClick;
+            const count=previous?.line===line && now-previous.time<500 ? previous.count+1 : 1;
+            this._lastNoteClick={line,time:now,count};
+            line._suppressMouseFocusUntil=0;
+            if(count>=2) {
+              prepare();this._mouseSelecting=false;
+              const content=line.querySelector('.zen-notes-list-content') || line;
+              const text=content.textContent || '', map=this._lineDisplayMap(line);
+              let start=map.offsets.filter(offset=>offset<rawOffset).length,end=start;
+              if(count>=4) {start=0;end=text.length;}
+              else {
+                while(start>0 && /[\p{L}\p{N}_]/u.test(text[start-1])) start--;
+                while(end<text.length && /[\p{L}\p{N}_]/u.test(text[end])) end++;
+              }
+              const a=this._textPoint(content,start),b=this._textPoint(content,end);
+              window.getSelection().setBaseAndExtent(a.node,a.offset,b.node,b.offset);
+            } else if(clickAction) clickAction();
+            else {
+              this._endWholeSelection();this._focusLine(line,rawOffset);
+              // Keep the source visible after the click, including its markers.
+              line.replaceChildren(document.createTextNode(line.dataset.raw || ''));
+              this._setCaret(line,rawOffset);
+            }
           }
           this._updateSelectionToolbar();
         }
       };
       this._cancelMouseSelection = finish;
       window.addEventListener("pointermove", move, true); window.addEventListener("pointerup", finish, true); window.addEventListener("pointercancel", finish, true);
+    }
+
+    _copySelection(event) {
+      const selected=this._bodySelection();
+      if(!selected || selected.start===selected.end || !event.clipboardData) return;
+      const raw=this._expandImages(this._editorMarkdown().slice(selected.start,selected.end));
+      let html='',list=null;
+      const close=()=>{if(list){html+=`</${list}>`;list=null;}};
+      for(const line of raw.split('\n')) {
+        const item=line.match(/^\s*(?:([-+*]) |(\d+)[.)] )(.*)$/);
+        if(item) {
+          const tag=item[2]?'ol':'ul';if(list!==tag){close();list=tag;html+=`<${tag}>`;}
+          html+=`<li>${this._inline(item[3],true)}</li>`;
+        } else {close();html+=`<div>${this._inline(line,true) || '<br>'}</div>`;}
+      }
+      close();event.preventDefault();
+      event.clipboardData.setData('text/plain',raw);
+      event.clipboardData.setData('text/html',html);
     }
 
     _textPoint(root, offset) {
@@ -2676,7 +2718,7 @@ function run(argv) {
 
     _snapshot() {
       return { title: document.getElementById("zen-notes-page-title")?.textContent || "",
-        body: this._editorMarkdown() };
+        body: this._editorMarkdown(), caret: this._bodySelection()?.end ?? null };
     }
 
     _recordHistory() {
@@ -2684,7 +2726,11 @@ function run(argv) {
       const value = this._snapshot();
       let history = this._histories.get(this.currentNoteId);
       if (!history) { history = { entries: [], index: -1 }; this._histories.set(this.currentNoteId, history); }
-      if (JSON.stringify(history.entries[history.index]) === JSON.stringify(value)) return;
+      const previous=history.entries[history.index];
+      if (previous?.title===value.title && previous?.body===value.body) {
+        if(value.caret!==null) previous.caret=value.caret;
+        return;
+      }
       history.entries.splice(history.index + 1);
       history.entries.push(value);
       if (history.entries.length > 200) history.entries.shift();
@@ -2701,7 +2747,7 @@ function run(argv) {
       this._restoringHistory = true;
       const page = document.querySelector("#zen-notes-page .zen-notes-page-scroll");
       const scroll = page?.scrollTop || 0;
-      const position = this._bodySelection()?.start || 0;
+      const position = history.entries[next].caret ?? history.entries[next].body.length;
       const value = history.entries[next];
       try {
       document.getElementById("zen-notes-page-title").textContent = value.title;

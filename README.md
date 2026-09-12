@@ -1,3 +1,14 @@
+# Zen Notes 0.14.13 alpha — Selection and text interaction
+
+- Undo/Redo snapshots retain the body caret position; Redo restores it with the text.
+- Single click enters Markdown source. Double click selects a word; four consecutive clicks on the same line select the line.
+- Drag selection scrolls near the top and bottom of the note viewport, retaining its anchor across lines. Animation stops on release, cancellation, or document replacement.
+- Copy and Cut supply Markdown plain text and semantic HTML lists instead of editor-specific list marker elements.
+
+Validation: JavaScript syntax check and 29 jsdom tests passed. New regressions cover Redo caret position, formatted list clipboard data, click sequences, and upward multiline selection with simulated scroll geometry. Live Zen and physical trackpad behavior remain unverified.
+
+Replace the mod files and fully restart Zen. Personal notes were not modified.
+
 # Zen Notes 0.14.12 alpha — Editor stability and Undo / Redo
 
 - Capture history before native input; Redo no longer records a new state before traversing history. Restore flags reset even if restoration fails.
