@@ -1,3 +1,9 @@
+# Zen Notes 0.14.23 alpha — Image panel corrections
+
+Explicit SVG namespace for Gecko/XHTML image controls. Fixed two-button Preview / View code panel with contrasting surface. Image frames align to their own height instead of stretching to taller neighbors; controls are clipped within the frame. Removed image hover outline and added a neutral gray resize grip with contrast on dark/light images.
+
+Validation: syntax and DOM regressions. Live Zen visual validation remains outstanding. updatedAt advanced for Sine.
+
 # Zen Notes 0.14.22 alpha — Image controls
 
 Top-right rounded two-icon panel for Preview and View code. Bottom-right curved resize grip replaces the centered line. Corner dragging combines horizontal and vertical movement while retaining aspect ratio. Hover controls use theme colors. updatedAt advanced for Sine.

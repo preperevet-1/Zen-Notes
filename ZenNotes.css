@@ -729,3 +729,12 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-notes-page .zen-notes-image-resize { top:auto; left:auto; right:8px; bottom:8px; width:23px; height:23px; padding:0; cursor:nwse-resize; opacity:0; transition:opacity 150ms ease; z-index:2; }
 #zen-notes-page .zen-notes-image-resize::after { position:absolute; top:auto; left:auto; right:3px; bottom:3px; width:13px; height:13px; margin:0; box-sizing:border-box; background:none; border:0; border-right:2px solid color-mix(in srgb,var(--zen-notes-page-fg) 65%,transparent); border-bottom:2px solid color-mix(in srgb,var(--zen-notes-page-fg) 65%,transparent); border-radius:0 0 6px 0; }
 #zen-notes-page .zen-notes-image-frame:hover .zen-notes-image-resize { opacity:1; }
+
+/* Image controls stay within each image, including mixed-aspect-ratio rows. */
+#zen-notes-page .zen-notes-line.is-image-line:not(.is-editing) { align-items:flex-start !important; }
+#zen-notes-page .zen-notes-image-frame { align-self:flex-start !important; height:auto !important; min-height:0 !important; overflow:hidden; isolation:isolate; outline:none !important; border:0 !important; box-shadow:none !important; }
+#zen-notes-page .zen-notes-image-frame:hover,#zen-notes-page .zen-notes-image-frame:hover img { outline:none !important; box-shadow:none !important; }
+#zen-notes-page .zen-notes-image-actions { display:flex !important; flex-flow:row nowrap !important; align-items:center !important; box-sizing:border-box; width:72px !important; height:36px !important; max-width:calc(100% - 8px); top:6px !important; right:6px !important; padding:3px !important; gap:2px !important; border:0 !important; border-radius:12px !important; background:#f8f8f8 !important; color:#303030 !important; box-shadow:0 2px 9px #0002 !important; }
+#zen-notes-page .zen-notes-image-actions button { display:flex !important; align-items:center !important; justify-content:center !important; visibility:visible !important; flex:1 1 0 !important; width:30px !important; height:30px !important; min-width:0 !important; padding:4px !important; margin:0 !important; color:#303030 !important; opacity:1 !important; }
+#zen-notes-page .zen-notes-image-actions svg { display:block !important; flex:none; width:20px !important; height:20px !important; fill:none !important; stroke:#303030 !important; }
+#zen-notes-page .zen-notes-image-resize::after { border-color:#999 !important; filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #000); }
