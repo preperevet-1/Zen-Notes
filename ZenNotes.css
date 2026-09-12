@@ -620,3 +620,12 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 .zen-notes-math-error { color: light-dark(#b34343,#efaaaa); font: 14px ui-monospace,monospace; }
 .zen-notes-footnote-ref { font-size: .65em; line-height: 0; vertical-align: super; color: var(--zen-notes-accent); cursor: pointer; }
 .zen-notes-footnote { font-size: .8em; opacity: .75; }
+
+/* Quick menu: no pressed outline, independent popover geometry. */
+#zen-notes-selection-toolbar button { outline: none; }
+#zen-notes-selection-toolbar button[aria-pressed] { box-shadow: none; }
+#zen-notes-selection-toolbar .zen-notes-text-styles { position:absolute; top:calc(100% + 8px); right:0; width:250px; padding:8px; border:1px solid color-mix(in srgb,currentColor 12%,transparent); border-radius:20px; background:var(--zen-notes-page-bg); box-shadow:0 8px 30px #0002; z-index:5; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button { display:flex; justify-content:space-between; width:100%; height:auto; min-height:46px; padding:10px 15px; margin:0; border-radius:12px; font:20px system-ui; text-align:left; }
+#zen-notes-selection-toolbar .zen-notes-text-styles button[aria-checked="true"] { background:color-mix(in srgb,var(--zen-notes-page-fg) 6%,transparent); }
+#zen-notes-selection-toolbar .zen-notes-text-styles button:nth-child(2),#zen-notes-selection-toolbar .zen-notes-text-styles button:nth-child(3),#zen-notes-selection-toolbar .zen-notes-text-styles button:nth-child(4) { font-weight:650; }
+#zen-notes-selection-toolbar button:focus-visible { background:color-mix(in srgb,var(--notes-toolbar-accent) 25%,var(--zen-notes-page-bg)); }

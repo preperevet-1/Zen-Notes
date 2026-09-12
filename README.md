@@ -1,3 +1,15 @@
+# Zen Notes 0.14.14 alpha — Quick Menu and formatting
+
+- Selection toolbar: Link, Bold, Italic, Underline, Strikethrough, Text.
+- Link inserts Markdown and selects the URL for replacement without a prompt.
+- Custom text-style popover retains existing labels, uses larger type and a selected indicator, and omits shortcut labels.
+- Preserve selection on pointer/mouse interaction and avoid moving the toolbar during formatting clicks. Remove pressed-item outlines.
+- Separate italic and bold delimiters when combining styles; recognize HTML strikethrough in formatting transformations.
+
+Validation: JavaScript syntax and 32 jsdom tests, including combined formatting toggles, Link caret selection and custom heading menu. Live Zen UI is not verified.
+
+Replace the mod files and fully restart Zen.
+
 # Zen Notes 0.14.13 alpha — Selection and text interaction
 
 - Undo/Redo snapshots retain the body caret position; Redo restores it with the text.
