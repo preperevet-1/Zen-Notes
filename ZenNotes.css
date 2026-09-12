@@ -738,3 +738,7 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-notes-page .zen-notes-image-actions button { display:flex !important; align-items:center !important; justify-content:center !important; visibility:visible !important; flex:1 1 0 !important; width:30px !important; height:30px !important; min-width:0 !important; padding:4px !important; margin:0 !important; color:#303030 !important; opacity:1 !important; }
 #zen-notes-page .zen-notes-image-actions svg { display:block !important; flex:none; width:20px !important; height:20px !important; fill:none !important; stroke:#303030 !important; }
 #zen-notes-page .zen-notes-image-resize::after { border-color:#999 !important; filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #000); }
+
+/* 0.14.24: a single crisp resize corner; no floating image panel. */
+#zen-notes-page .zen-notes-image-actions { display:none !important; }
+#zen-notes-page .zen-notes-image-resize::after { width:14px; height:14px; right:3px; bottom:3px; border-right:2px solid #888 !important; border-bottom:2px solid #888 !important; border-radius:0 0 6px 0; filter:none !important; box-shadow:none !important; background:none !important; transform:none !important; }

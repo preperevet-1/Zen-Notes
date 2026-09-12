@@ -1,3 +1,9 @@
+# Zen Notes 0.14.24 alpha
+
+Remove the floating image action panel. Keep only the bottom-right resize corner, drawn with a solid gray 2px stroke and no blur, filters or shadow. Resize behavior is unchanged.
+
+Validation: syntax and markup checks; live Zen appearance remains unverified. updatedAt advanced for Sine.
+
 # Zen Notes 0.14.23 alpha — Image panel corrections
 
 Explicit SVG namespace for Gecko/XHTML image controls. Fixed two-button Preview / View code panel with contrasting surface. Image frames align to their own height instead of stretching to taller neighbors; controls are clipped within the frame. Removed image hover outline and added a neutral gray resize grip with contrast on dark/light images.
