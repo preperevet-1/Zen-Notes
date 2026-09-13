@@ -1,3 +1,11 @@
+# Zen Notes 0.14.28 alpha — Wait for PDF browser initialization
+
+Wait for Gecko to create the export browser's docshell and browsing context before disabling scripts or loading the document. Initialization is bounded to ten seconds and failure cleans up the browser. Fixes the reported null browser.docShell access.
+
+Validation: DOM, PDF and platform regressions, including delayed docshell creation. Native PDF export remains unverified.
+
+Replace mod files and fully restart Zen.
+
 # Zen Notes 0.14.27 alpha — PDF and platform hotfix
 
 PDF preparation now uses a dedicated nonremote content browser instead of an HTML iframe in browser chrome. Wait for the export document, fonts and images, then print to PDF. Preparation has a timeout; errors include their reason and temporary browser resources are removed. PDF page dimensions remain unchanged.
