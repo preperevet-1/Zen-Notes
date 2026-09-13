@@ -1,3 +1,9 @@
+# Zen Notes 0.14.30 alpha — Correct native print settings API
+
+Use createNewPrintSettings() instead of the nonexistent newPrintSettings property. Set the Mozilla Save to PDF printer name and initialized flag, following print.js shipped with the installed Zen 1.22.1b. Correct the test service mock to expose the actual factory method and reject obsolete property access.
+
+Validation: syntax and DOM/PDF regressions; native PDF output remains unverified.
+
 # Zen Notes 0.14.29 alpha — PDF through managed browser tab
 
 Export loads a temporary HTML file in a normal tabbrowser-managed tab and waits for top-level network completion before printing. This removes dependence on an uninitialized custom browser/docshell and supports remote content browsers. The temporary tab and file are cleaned up after success or failure. PDF label, page size and platform menus are unchanged.
