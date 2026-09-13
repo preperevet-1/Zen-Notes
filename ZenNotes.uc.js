@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.15.0-sync-test";
+  const VERSION = "0.15.1-sync-test";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const NOTE_ICON_SVG = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M6 22C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V4C4 3.46957 4.21071 2.96086 4.58579 2.58579C4.96086 2.21072 5.46957 2 6 2H14C14.3166 1.99949 14.6301 2.06161 14.9225 2.18277C15.215 2.30394 15.4806 2.48176 15.704 2.706L19.292 6.294C19.5168 6.51751 19.6952 6.78335 19.8167 7.07616C19.9382 7.36898 20.0005 7.68297 20 8V20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22H6Z\" fill=\"context-fill\"/>\n<path d=\"M15.6443 3.50091C16.6399 4.43015 17.7732 5.52444 18.6889 6.49206C19.2553 7.09058 18.824 8 18 8H15C14.4477 8 14 7.55228 14 7V4.22684C14 3.36399 15.0136 2.91214 15.6443 3.50091Z\" fill=\"context-stroke\" fill-opacity=\"0.55\"/>\n<path d=\"M3 20V4C3 3.20435 3.3163 2.44151 3.87891 1.87891C4.44152 1.3163 5.20435 1 6 1H14V1.00098C14.4479 1.00046 14.8919 1.08734 15.3057 1.25879C15.7193 1.43022 16.0949 1.68198 16.4111 1.99902L19.9971 5.58496L20.1133 5.70605C20.3773 5.99585 20.5896 6.32951 20.7402 6.69238C20.9122 7.1067 21.0005 7.55143 21 8V20C21 20.7956 20.6837 21.5585 20.1211 22.1211C19.5585 22.6837 18.7957 23 18 23H6C5.20435 23 4.44152 22.6837 3.87891 22.1211C3.3163 21.5585 3 20.7956 3 20ZM5 20C5 20.2652 5.10543 20.5195 5.29297 20.707C5.48051 20.8946 5.73478 21 6 21H18C18.2652 21 18.5195 20.8946 18.707 20.707C18.8946 20.5195 19 20.2652 19 20V7.99805C19.0003 7.81344 18.9642 7.6305 18.8936 7.45996C18.8227 7.28915 18.7181 7.13331 18.5869 7.00293L14.9961 3.41211C14.8658 3.28135 14.7106 3.17712 14.54 3.10645C14.3695 3.03581 14.1865 2.99974 14.002 3H6C5.73478 3 5.4805 3.10543 5.29297 3.29297C5.10543 3.4805 5 3.73478 5 4V20Z\" fill=\"context-stroke\"/>\n<path d=\"M14 2V7C14 7.26522 14.1054 7.51957 14.2929 7.70711C14.4804 7.89464 14.7348 8 15 8H20M15 8H20\" stroke=\"context-stroke\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n</svg>\n";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
@@ -221,6 +221,13 @@ return module.exports; })();
     }
 
 
+    _notesSyncAccount() {
+      const module = ChromeUtils.importESModule("resource://gre/modules/FxAccounts.sys.mjs");
+      const account = typeof module.getFxAccountsSingleton === "function" ? module.getFxAccountsSingleton() : module.fxAccounts;
+      if (typeof account?.getSignedInUser !== "function") throw new Error("This Zen version exposes no supported Mozilla Account API");
+      return account;
+    }
+
     async _installNotesSync() {
       const { Service } = ChromeUtils.importESModule("resource://services-sync/service.sys.mjs");
       await Service.promiseInitialized;
@@ -278,8 +285,7 @@ return module.exports; })();
         _storeObj: NotesStore, _trackerObj: LegacyTracker, _recordObj: CryptoWrapper,
         version: 1, syncPriority: 20,
         async _syncStartup() {
-          const { fxAccounts } = ChromeUtils.importESModule("resource://gre/modules/FxAccounts.sys.mjs");
-          const user = await fxAccounts.getSignedInUser();
+          const user = await controller()._notesSyncAccount().getSignedInUser();
           const bound = Services.prefs.getStringPref("zen-notes.sync-test.account", "");
           if (!user || !bound || user.uid !== bound) throw new Error("Re-enable Test Notes Sync for this Mozilla Account");
           await controller()._captureSyncNotes(this, directory);
@@ -367,8 +373,7 @@ return module.exports; })();
       const enabled = !Services.prefs.getBoolPref(pref, false);
       try {
         if (enabled) {
-          const { fxAccounts } = ChromeUtils.importESModule("resource://gre/modules/FxAccounts.sys.mjs");
-          const user = await fxAccounts.getSignedInUser();
+          const user = await this._notesSyncAccount().getSignedInUser();
           if (!user) { this._showNotice("Sign in to your Mozilla Account first"); return; }
           const bound = Services.prefs.getStringPref("zen-notes.sync-test.account", "");
           if (bound && bound !== user.uid) { this._showNotice("Test Sync is bound to another account. Use a separate Zen profile for this account."); return; }
@@ -387,8 +392,7 @@ return module.exports; })();
     async _syncNotesNow() {
       try {
         if (!Services.prefs.getBoolPref("services.sync.engine.zennotestest", false)) return;
-        const { fxAccounts } = ChromeUtils.importESModule("resource://gre/modules/FxAccounts.sys.mjs");
-        if (!(await fxAccounts.getSignedInUser())) { this._showNotice("Sign in to your Mozilla Account in Zen Sync settings first"); return; }
+        if (!(await this._notesSyncAccount().getSignedInUser())) { this._showNotice("Sign in to your Mozilla Account in Zen Sync settings first"); return; }
         const service = await this._installNotesSync();
         if (service.locked) { this._showNotice("Zen Sync is already running. Try again after it finishes."); return; }
         const engine = service.engineManager.get("zennotestest"); engine.notesTestCompleted = false;
@@ -2911,6 +2915,19 @@ function run(argv) {
     }
 
     async _exportNote(id = this.currentNoteId) {
+      try { await this._exportNoteFile(id); }
+      catch (error) { console.error(LOG, error); this._showNotice("Export failed: " + (error.message || String(error))); }
+    }
+
+    async _printNote(id = this.currentNoteId) {
+      try {
+        await this._saveCurrentNow();
+        const note = this._getNote(id); if (!note) return;
+        await this._exportPDF(await this._readNote(note), null, true);
+      } catch (error) { console.error(LOG, error); }
+    }
+
+    async _exportNoteFile(id = this.currentNoteId) {
       await this._saveCurrentNow();
       const note = this._getNote(id);
       if (!note) return;
@@ -2936,8 +2953,10 @@ function run(argv) {
       await FileIO.writeUTF8(path, text);
     }
 
-    async _exportPDF(data, path) {
-      let tab, browser, listener, timer;
+    async _exportPDF(data, path, preview = false) {
+      let tab, browser, listener, timer, progressTimer, keepPreview = false;
+      let stage = "prepare";
+      this._showNotice(preview ? "Preparing print preview…" : "Preparing PDF…");
       const temporaryPath = PathUtils.join(PathUtils.tempDir, "zen-notes-export-" + this._makeId() + ".html");
       try {
         const html = this._exportHTML(data).replace("</style>", "@page{size:letter;margin:0.5in}body{margin:0;padding:0;max-width:none}img,pre,blockquote{break-inside:avoid}</style>");
@@ -2968,7 +2987,25 @@ function run(argv) {
         window.clearTimeout(timer);
         gBrowser.removeTabsProgressListener(listener); listener = null;
         browser = tab.linkedBrowser;
-        const settings = Cc["@mozilla.org/gfx/printsettings-service;1"].getService(Ci.nsIPrintSettingsService).createNewPrintSettings();
+        if (preview) {
+          stage = "print dialog";
+          gBrowser.selectedTab = tab;
+          const cleanup = event => {
+            if (event.target !== tab) return;
+            gBrowser.tabContainer.removeEventListener("TabClose", cleanup);
+            FileIO.remove(temporaryPath, { ignoreAbsent: true }).catch(error => console.warn(LOG, error));
+          };
+          gBrowser.tabContainer.addEventListener("TabClose", cleanup);
+          try { await PrintUtils.startPrintWindow(browser.browsingContext); }
+          catch (error) { gBrowser.tabContainer.removeEventListener("TabClose", cleanup); throw error; }
+          keepPreview = true;
+          this._showNotice("Choose Save to PDF in the print dialog. Close the preview tab when finished.");
+          return;
+        }
+        stage = "print settings";
+        const service = Cc["@mozilla.org/gfx/printsettings-service;1"].getService(Ci.nsIPrintSettingsService);
+        const settings = typeof service.createNewPrintSettings === "function" ? service.createNewPrintSettings() : service.newPrintSettings;
+        if (!settings) throw new Error("Print settings API unavailable");
         settings.printerName = "Mozilla Save to PDF";
         settings.isInitializedFromPrinter = true;
         settings.printSilent = true;
@@ -2976,21 +3013,31 @@ function run(argv) {
         settings.outputFormat = Ci.nsIPrintSettings.kOutputFormatPDF;
         settings.toFileName = path;
         settings.paperSizeUnit = Ci.nsIPrintSettings.kPaperSizeInches;
-        settings.paperWidth = 8.5; settings.paperHeight = 11; settings.paperId = "na_letter";
+        settings.paperWidth = 8.5; settings.paperHeight = 11; 
+        if ("paperId" in settings) settings.paperId = "na_letter";
+        else if ("paperName" in settings) settings.paperName = "na_letter";
         settings.printBGColors = true; settings.printBGImages = true;
         for (const key of ["headerStrLeft", "headerStrCenter", "headerStrRight", "footerStrLeft", "footerStrCenter", "footerStrRight"]) settings[key] = "";
+        stage = "saving";
+        this._showNotice("Saving PDF…");
+        progressTimer = window.setTimeout(() => this._showNotice("PDF is still printing. You can also use Print / Save as PDF… from the note menu."), 15000);
         await browser.browsingContext.print(settings);
+        window.clearTimeout(progressTimer);
+        stage = "file verification";
         if (!(await FileIO.exists(path)) || (await FileIO.stat(path)).size === 0) throw new Error("PDF output file was not created");
         this._showNotice("PDF exported");
       } catch (error) {
         console.error(LOG, "PDF export failed", error);
-        this._showNotice("Could not export PDF: " + (error.message || String(error)));
+        this._showNotice("Could not export PDF [" + stage + "]: " + (error.message || String(error)));
         throw error;
       } finally {
         window.clearTimeout(timer);
         if (listener) { try { gBrowser.removeTabsProgressListener(listener); } catch {} }
-        if (tab && !tab.closing) gBrowser.removeTab(tab, { animate: false });
-        try { await FileIO.remove(temporaryPath, { ignoreAbsent: true }); } catch (error) { console.warn(LOG, "PDF temporary file cleanup failed", error); }
+        window.clearTimeout(progressTimer);
+        if (!keepPreview) {
+          if (tab && !tab.closing) gBrowser.removeTab(tab, { animate: false });
+          try { await FileIO.remove(temporaryPath, { ignoreAbsent: true }); } catch (error) { console.warn(LOG, "PDF temporary file cleanup failed", error); }
+        }
       }
     }
 
@@ -3743,6 +3790,7 @@ function run(argv) {
       popup.append(document.createXULElement("menuseparator"));
       if (Services.appinfo.OS === "Darwin") popup.append(this._menuItem("Send to Apple Notes", () => this._sendToAppleNotes()));
       popup.append(this._menuItem("Export…", () => this._exportNote()));
+      popup.append(this._menuItem("Print / Save as PDF…", () => this._printNote()));
       popup.append(this._menuItem("Import Markdown…", () => this._importNote()));
       const syncEnabled = Services.prefs.getBoolPref("services.sync.engine.zennotestest", false);
       popup.append(document.createXULElement("menuseparator"));

@@ -1,3 +1,15 @@
+# Zen Notes 0.15.1-sync-test — Account API and PDF compatibility
+
+Mozilla Account access uses getFxAccountsSingleton() on current Zen, with the legacy fxAccounts export as a fallback. All three account-access paths share this helper.
+
+PDF export now reports preparation/saving progress, identifies the failing stage, and surfaces picker errors. It recognizes both paperId and paperName and both print-settings factories. The underlying cause of silent non-saving on Windows/Linux is not yet reproduced.
+
+A separate Print / Save as PDF… command uses Zen's built-in print dialog. Choose Save to PDF there, save, then close the prepared preview tab. Its temporary HTML is deleted when that tab closes. This bypasses the mod's silent-print settings and file picker.
+
+Tests: 50 editor checks, PDF success/failure mocks, native-dialog lifecycle mocks for Windows/Linux, picker-error handling, and nine Sync tests each with current and legacy account APIs. Real cross-device Sync and native Windows/Linux PDF output remain unverified.
+
+Install on both devices and restart Zen. Enable Test Notes Sync, then Sync Notes Now. All prototype limitations in SYNC-TEST.md still apply.
+
 # Zen Notes 0.15.0-sync-test
 
 Experimental Mozilla/Firefox Sync engine, opt-in from the note context menu. This is a two-profile text-note transfer prototype, not a production continuous-merge implementation. It uses CryptoWrapper and the installed Firefox Sync Store / LegacyTracker / SyncEngine interfaces.
