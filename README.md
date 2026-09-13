@@ -1,3 +1,9 @@
+# Zen Notes 0.14.29 alpha — PDF through managed browser tab
+
+Export loads a temporary HTML file in a normal tabbrowser-managed tab and waits for top-level network completion before printing. This removes dependence on an uninitialized custom browser/docshell and supports remote content browsers. The temporary tab and file are cleaned up after success or failure. PDF label, page size and platform menus are unchanged.
+
+Validation: DOM and mocked managed-tab export tests. Native PDF output still needs verification in Zen.
+
 # Zen Notes 0.14.28 alpha — Wait for PDF browser initialization
 
 Wait for Gecko to create the export browser's docshell and browsing context before disabling scripts or loading the document. Initialization is bounded to ten seconds and failure cleans up the browser. Fixes the reported null browser.docShell access.
