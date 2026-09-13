@@ -1,3 +1,9 @@
+# Zen Notes 0.14.31 alpha — Native paper property correction
+
+Replace unsupported paperName with paperId, matching the print implementation shipped in installed Zen. Print-settings tests now use a sealed object containing only the supported setting names to catch unsupported native-property writes.
+
+Validation: syntax, DOM and PDF mock regressions; native PDF output remains unverified.
+
 # Zen Notes 0.14.30 alpha — Correct native print settings API
 
 Use createNewPrintSettings() instead of the nonexistent newPrintSettings property. Set the Mozilla Save to PDF printer name and initialized flag, following print.js shipped with the installed Zen 1.22.1b. Correct the test service mock to expose the actual factory method and reject obsolete property access.
