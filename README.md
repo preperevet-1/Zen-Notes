@@ -1,3 +1,13 @@
+# Zen Notes 0.14.27 alpha — PDF and platform hotfix
+
+PDF preparation now uses a dedicated nonremote content browser instead of an HTML iframe in browser chrome. Wait for the export document, fonts and images, then print to PDF. Preparation has a timeout; errors include their reason and temporary browser resources are removed. PDF page dimensions remain unchanged.
+
+Windows/Linux use Show in Files; Apple Notes and macOS sharing are gated to macOS. Reveal uses the system file manager with a parent-directory fallback.
+
+Validation: DOM and mocked PDF/platform regressions. Native headless Zen exited before testing, so actual PDF output and Windows/Linux native integration remain unverified.
+
+Replace the mod files and restart Zen after updating.
+
 # Zen Notes 0.14.26 alpha — PDF export fix
 
 PDF export now uses Gecko's outputDestination=kOutputDestinationFile instead of the obsolete printToFile property. The isolated export frame permits printing, and success is only reported after a nonempty output file exists. The export picker label is now PDF (.pdf); page dimensions remain 8.5 × 11 inches.
