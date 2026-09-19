@@ -1,3 +1,9 @@
+# Zen Notes 0.15.7-quick-test
+
+Unify stack hover and keyboard-focus expansion. Collapse card bodies before applying stacked transforms, clip collapsed cards to a consistent 34px height and keep all cards expanded while editing. Prevents exposed note text overlapping media cards when moving toward Space buttons.
+
+Validation: syntax and nine sidebar DOM checks, including pointer leave and focus transitions. Native rendering remains to be verified.
+
 # Zen Notes 0.15.6-quick-test
 
 Disable window dragging across Quick Note and stop pointer presses propagating to sidebar handlers without cancelling native selection. Thin low-contrast scrollbar with transparent track. Shared stack hover/focus expands Quick Note together with media cards. Add the same page icon used by the New Note menu before the title.

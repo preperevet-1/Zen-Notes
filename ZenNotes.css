@@ -809,3 +809,22 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-media-controls-toolbar[zen-notes-quick-stack]:is(:hover,:focus-within) #zen-notes-sidebar-quick button {
  opacity:1; pointer-events:auto;
 }
+
+/* One expansion state for the complete stack, including keyboard editing. */
+#zen-media-controls-toolbar[zen-notes-quick-stack][zn-quick-expanded] > .zen-media-card:not([zen-removing],[zen-hiding]) {
+ transform:none !important; opacity:1 !important;
+}
+#zen-media-controls-toolbar[zen-notes-quick-stack][zn-quick-expanded] .show-on-hover {
+ max-height:50px !important; padding:5px !important; margin-bottom:0; opacity:1 !important; transform:none !important; pointer-events:auto;
+}
+#zen-media-controls-toolbar[zen-notes-quick-stack][zn-quick-expanded] #zen-notes-sidebar-quick .zn-quick-body { grid-template-rows:1fr; opacity:1; }
+#zen-media-controls-toolbar[zen-notes-quick-stack]:not([zn-quick-expanded]) > .zen-media-card {
+ box-sizing:border-box; height:34px !important; min-height:34px !important; max-height:34px !important; overflow:hidden !important;
+}
+#zen-media-controls-toolbar[zen-notes-quick-stack]:not([zn-quick-expanded]) .show-on-hover {
+ max-height:0 !important; padding-block:0 !important; opacity:0 !important; pointer-events:none; transition:none !important;
+}
+#zen-media-controls-toolbar[zen-notes-quick-stack]:not([zn-quick-expanded]) #zen-notes-sidebar-quick .zn-quick-body {
+ grid-template-rows:0fr !important; opacity:0 !important; visibility:hidden; transition:none;
+}
+#zen-media-controls-toolbar[zen-notes-quick-stack]:not([zn-quick-expanded]) #zen-notes-sidebar-quick button { opacity:0 !important; pointer-events:none; }
