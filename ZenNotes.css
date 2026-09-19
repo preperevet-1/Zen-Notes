@@ -788,3 +788,24 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
  border:0 !important; outline:0 !important; box-shadow:none !important;
  background:transparent !important;
 }
+
+/* Quick Note is an editing surface, never a window drag region. */
+#zen-notes-sidebar-quick, #zen-notes-sidebar-quick * { -moz-window-dragging:no-drag !important; }
+#zen-notes-sidebar-quick :is(textarea,.zn-quick-title) { user-select:text !important; cursor:text; }
+#zen-notes-sidebar-quick textarea {
+ scrollbar-width:thin;
+ scrollbar-color:color-mix(in srgb,currentColor 18%,transparent) transparent;
+}
+#zen-notes-sidebar-quick textarea:hover {
+ scrollbar-color:color-mix(in srgb,currentColor 30%,transparent) transparent;
+}
+#zen-notes-sidebar-quick .zn-quick-note-icon {
+ display:block; width:16px; height:16px; flex:0 0 16px; margin-inline-start:5px;
+ background:currentColor; opacity:.75; mask-repeat:no-repeat; mask-position:center; mask-size:contain;
+}
+#zen-media-controls-toolbar[zen-notes-quick-stack]:is(:hover,:focus-within) #zen-notes-sidebar-quick .zn-quick-body {
+ grid-template-rows:1fr; opacity:1;
+}
+#zen-media-controls-toolbar[zen-notes-quick-stack]:is(:hover,:focus-within) #zen-notes-sidebar-quick button {
+ opacity:1; pointer-events:auto;
+}

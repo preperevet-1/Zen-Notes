@@ -1,3 +1,9 @@
+# Zen Notes 0.15.6-quick-test
+
+Disable window dragging across Quick Note and stop pointer presses propagating to sidebar handlers without cancelling native selection. Thin low-contrast scrollbar with transparent track. Shared stack hover/focus expands Quick Note together with media cards. Add the same page icon used by the New Note menu before the title.
+
+Validation: syntax and eight sidebar DOM checks passed, including preservation of default text selection and pointer event isolation. Native window dragging, scrollbar appearance and hover visuals still need verification in Zen.
+
 # Zen Notes 0.15.5-quick-test
 
 Remove native textarea borders and focus chrome. Compact card header is 34px including padding; expanded text area is 110px. Close now deletes the local draft through the normal deletion path, clears its remembered ID and removes matching cards from open windows. Opening again creates a blank note. Expand still keeps the note.
