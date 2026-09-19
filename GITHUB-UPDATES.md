@@ -1,3 +1,9 @@
+# Zen Notes 0.15.4-quick-test — Shared media stack
+
+Quick Note now lives inside Zen's media controls toolbar and shares its card styling and stacked/list presentation. A scoped adapter assigns visual stack positions without changing Zen's media-controller records. Hiding or expanding the note restores native media styling. Title is plain editable text without input chrome. Smaller action buttons appear on hover or keyboard focus.
+
+Validation: syntax and seven sidebar tests covering persistence, restore, opening without duplication, shared stack, hidden media and cleanup passed. Actual native Zen layout remains unverified; this is a test build.
+
 # Zen Notes 0.15.3-quick-test — Sidebar Quick Notes
 
 Open Quick Note from the sidebar context menu, or Cmd+Shift+Option+N on macOS / Ctrl+Shift+Alt+N on Windows/Linux. The card sits immediately above Zen's media toolbar.
