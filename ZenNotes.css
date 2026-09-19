@@ -748,7 +748,7 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-media-controls-toolbar[zen-notes-quick-stack] {
  display:flex !important; flex-direction:column-reverse; gap:var(--zen-media-stack-gap,6px);
  position:relative; overflow:visible; z-index:2;
- height:calc(40px + 8px * var(--zn-stack-count,0)) !important;
+ height:calc(34px + 8px * var(--zn-stack-count,0)) !important;
  opacity:1 !important; translate:none !important; transform:none !important;
 }
 #zen-media-controls-toolbar[zen-notes-quick-stack] > .zen-media-card {
@@ -766,7 +766,7 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
  box-shadow:var(--zen-sidebar-notification-shadow); overflow:visible;
 }
 #zen-notes-sidebar-quick[hidden] { display:none !important; }
-#zen-notes-sidebar-quick .zn-quick-header { display:flex; align-items:center; gap:2px; height:32px; }
+#zen-notes-sidebar-quick .zn-quick-header { display:flex; align-items:center; gap:2px; height:26px; }
 #zen-notes-sidebar-quick .zn-quick-title { min-width:0; flex:1; border:0; background:transparent; color:inherit; font:600 13px system-ui; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:4px 6px; outline:none; }
 #zen-notes-sidebar-quick .zn-quick-title:empty::before { content:"Quick Note"; opacity:.6; }
 #zen-notes-sidebar-quick button { appearance:none; border:0; border-radius:5px; background:transparent; color:inherit; display:grid; place-items:center; width:22px; height:22px; padding:3px; cursor:pointer; opacity:0; pointer-events:none; transition:opacity 160ms ease; }
@@ -776,6 +776,15 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-notes-sidebar-quick .zn-quick-body { display:grid; grid-template-rows:0fr; opacity:0; transition:grid-template-rows 220ms ease,opacity 180ms ease; }
 #zen-notes-sidebar-quick .zn-quick-body > div { overflow:hidden; min-height:0; }
 #zen-notes-sidebar-quick:is(:hover,:focus-within) .zn-quick-body { grid-template-rows:1fr; opacity:1; }
-#zen-notes-sidebar-quick textarea { display:block; box-sizing:border-box; width:100%; height:160px; resize:none; border:0; border-radius:8px; background:transparent; color:inherit; padding:10px 6px 6px; font:13px/1.5 system-ui; }
+#zen-notes-sidebar-quick textarea { display:block; box-sizing:border-box; width:100%; height:110px; resize:none; border:0; border-radius:8px; background:transparent; color:inherit; padding:10px 6px 6px; font:13px/1.5 system-ui; }
 #zen-notes-sidebar-quick :is(textarea,button):focus-visible { outline:2px solid var(--zen-primary-color,Highlight); outline-offset:-2px; }
 @media(prefers-reduced-motion:reduce) { #zen-notes-sidebar-quick .zn-quick-body,#zen-notes-sidebar-quick button { transition:none; } }
+
+/* Suppress native text-control chrome in Firefox on every platform. */
+#zen-notes-sidebar-quick textarea,
+#zen-notes-sidebar-quick textarea:focus,
+#zen-notes-sidebar-quick textarea:focus-visible {
+ appearance:none !important; -moz-appearance:none !important;
+ border:0 !important; outline:0 !important; box-shadow:none !important;
+ background:transparent !important;
+}

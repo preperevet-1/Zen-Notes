@@ -1,3 +1,11 @@
+# Zen Notes 0.15.5-quick-test
+
+Remove native textarea borders and focus chrome. Compact card header is 34px including padding; expanded text area is 110px. Close now deletes the local draft through the normal deletion path, clears its remembered ID and removes matching cards from open windows. Opening again creates a blank note. Expand still keeps the note.
+
+The shared media stack now orders visible cards by arrival; a media player appearing after Quick Note can become the front card. Reappearing media is treated as newly visible.
+
+Seven DOM tests passed, including deletion/reopen and newly arriving media order. Native appearance remains unverified. Existing experimental Sync does not propagate deletions to other profiles.
+
 # Zen Notes 0.15.4-quick-test — Shared media stack
 
 Quick Note now lives inside Zen's media controls toolbar and shares its card styling and stacked/list presentation. A scoped adapter assigns visual stack positions without changing Zen's media-controller records. Hiding or expanding the note restores native media styling. Title is plain editable text without input chrome. Smaller action buttons appear on hover or keyboard focus.
