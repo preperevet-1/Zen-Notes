@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.15.9-quick-test";
+  const VERSION = "0.15.10-quick-test";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const NOTE_ICON_SVG = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M6 22C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V4C4 3.46957 4.21071 2.96086 4.58579 2.58579C4.96086 2.21072 5.46957 2 6 2H14C14.3166 1.99949 14.6301 2.06161 14.9225 2.18277C15.215 2.30394 15.4806 2.48176 15.704 2.706L19.292 6.294C19.5168 6.51751 19.6952 6.78335 19.8167 7.07616C19.9382 7.36898 20.0005 7.68297 20 8V20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22H6Z\" fill=\"context-fill\"/>\n<path d=\"M15.6443 3.50091C16.6399 4.43015 17.7732 5.52444 18.6889 6.49206C19.2553 7.09058 18.824 8 18 8H15C14.4477 8 14 7.55228 14 7V4.22684C14 3.36399 15.0136 2.91214 15.6443 3.50091Z\" fill=\"context-stroke\" fill-opacity=\"0.55\"/>\n<path d=\"M3 20V4C3 3.20435 3.3163 2.44151 3.87891 1.87891C4.44152 1.3163 5.20435 1 6 1H14V1.00098C14.4479 1.00046 14.8919 1.08734 15.3057 1.25879C15.7193 1.43022 16.0949 1.68198 16.4111 1.99902L19.9971 5.58496L20.1133 5.70605C20.3773 5.99585 20.5896 6.32951 20.7402 6.69238C20.9122 7.1067 21.0005 7.55143 21 8V20C21 20.7956 20.6837 21.5585 20.1211 22.1211C19.5585 22.6837 18.7957 23 18 23H6C5.20435 23 4.44152 22.6837 3.87891 22.1211C3.3163 21.5585 3 20.7956 3 20ZM5 20C5 20.2652 5.10543 20.5195 5.29297 20.707C5.48051 20.8946 5.73478 21 6 21H18C18.2652 21 18.5195 20.8946 18.707 20.707C18.8946 20.5195 19 20.2652 19 20V7.99805C19.0003 7.81344 18.9642 7.6305 18.8936 7.45996C18.8227 7.28915 18.7181 7.13331 18.5869 7.00293L14.9961 3.41211C14.8658 3.28135 14.7106 3.17712 14.54 3.10645C14.3695 3.03581 14.1865 2.99974 14.002 3H6C5.73478 3 5.4805 3.10543 5.29297 3.29297C5.10543 3.4805 5 3.73478 5 4V20Z\" fill=\"context-stroke\"/>\n<path d=\"M14 2V7C14 7.26522 14.1054 7.51957 14.2929 7.70711C14.4804 7.89464 14.7348 8 15 8H20M15 8H20\" stroke=\"context-stroke\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n</svg>\n";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
@@ -585,7 +585,7 @@ return module.exports; })();
       const anchor = document.getElementById("zen-media-controls-toolbar");
       if (!anchor?.parentElement) { this._showNotice("Quick Note: sidebar container is unavailable"); return; }
       let card = document.getElementById("zen-notes-sidebar-quick");
-      if (card) { card.hidden = false; this._updateQuickMediaStack?.(); if (focus) { const field = card.querySelector("textarea"); field.hidden = false; card.querySelector(".zn-quick-preview").hidden = true; field.focus(); } return; }
+      if (card) { card.hidden = false; this._updateQuickMediaStack?.(); if (focus) card.querySelector(".zn-quick-rich").focus(); return; }
       let id = Services.prefs.getStringPref("zen-notes.sidebar-quick-id", "");
       let note = this._getNote(id);
       if (!note || await FileIO.exists(this._deletedPath(id))) {
@@ -628,110 +628,135 @@ return module.exports; })();
       };
       this._saveSidebarQuickNote = save;
       const report = error => { console.error(LOG, error); this._showNotice("Quick Note could not save: " + error.message); };
-      const preview = this._html("div"); preview.className = "zn-quick-preview"; preview.tabIndex = 0; preview.hidden = true; inner.append(preview);
-      const render = () => {
-        preview.replaceChildren(); let list = null, listType = "";
-        input.value.split("\n").forEach((raw, index) => {
-          const task = raw.match(/^\s*[-*+] \[([ xX])\]\s*(.*)$/);
-          const item = raw.match(/^\s*(?:([-*+])|\d+[.)])\s+(.*)$/);
-          let row;
-          if (item) {
-            const type = item[1] ? "ul" : "ol";
-            if (!list || listType !== type) { list = this._html(type); listType = type; preview.append(list); }
-            row = this._html("li"); list.append(row);
-          } else { list = null; listType = ""; row = this._html("div"); preview.append(row); }
-          if (task) {
-            row.className = "zn-quick-task";
-            const check = this._html("input"); check.type = "checkbox"; check.checked = task[1].toLowerCase() === "x";
-            check.setAttribute("aria-label", task[2] || "Task");
-            check.addEventListener("click", event => event.stopPropagation());
-            check.addEventListener("change", () => {
-              const lines = input.value.split("\n"); lines[index] = lines[index].replace(/\[[ xX]\]/, check.checked ? "[x]" : "[ ]");
-              input.value = lines.join("\n"); save().catch(report);
-            });
-            const label = this._html("span"); label.innerHTML = this._inline(task[2]); row.append(check, label);
-          } else row.innerHTML = this._inline(item ? item[2] : raw) || "<br>";
-        });
-      };
-      const tools = this._html("div"); tools.className = "zn-quick-format"; tools.hidden = true;
-      tools.setAttribute("role", "toolbar"); tools.setAttribute("aria-label", "Format selection"); inner.insertBefore(tools, input);
-      let selected = null;
-      const select = () => { selected = { start: input.selectionStart, end: input.selectionEnd }; tools.hidden = selected.start === selected.end || input.hidden; };
-      for (const type of ["select", "mouseup", "keyup"]) input.addEventListener(type, select);
-      for (const [label, kind] of [["Bold","bold"],["Italic","italic"],["Link…","link"],["Bullets","bullet"],["Numbered","number"],["Checkbox","task"]]) {
-        const action = this._html("button"); action.type = "button"; action.textContent = {bold:"B",italic:"I",link:"↗",bullet:"•",number:"1.",task:"☑"}[kind]; action.title = label; action.setAttribute("aria-label", label);
-        action.addEventListener("mousedown", event => { event.preventDefault(); event.stopPropagation(); });
-        action.addEventListener("click", () => {
-          if (!selected) return;
-          let {start,end} = selected; let text = input.value.slice(start,end), result;
-          if (kind === "bold" || kind === "italic") { const marker = kind === "bold" ? "**" : "*"; result = marker + text + marker; }
-          else if (kind === "link") {
-            const value = {value:"https://"};
-            if (!Services.prompt.prompt(window,"Insert link","URL",value,null,{})) return;
-            if (!/^https?:\/\//i.test(value.value)) { this._showNotice("Use an http or https link"); return; }
-            result = "[" + text.replace(/[\[\]]/g,"") + "](<" + value.value.replace(/>/g,"%3E") + ">)";
-          } else {
-            start = input.value.lastIndexOf("\n",start-1)+1;
-            const next = input.value.indexOf("\n",end); end = next < 0 ? input.value.length : next;
-            result = input.value.slice(start,end).split("\n").map((line,i)=>(kind==="bullet"?"- ":kind==="task"?"- [ ] ":(i+1)+". ")+line.replace(/^\s*(?:[-*+] |\d+[.)] )(?:\[[ xX]\] )?/,"")).join("\n");
+      input.hidden = true;
+      const rich = this._html("div"); rich.className = "zn-quick-rich"; rich.contentEditable = "true";
+      rich.setAttribute("role", "textbox"); rich.setAttribute("aria-multiline", "true"); rich.setAttribute("aria-label", "Quick note text"); inner.append(rich);
+      const serialize = root => {
+        const walk = node => {
+          if (node.nodeType === 3) return node.data;
+          if (node.nodeType !== 1) return "";
+          const tag = node.localName, text = Array.from(node.childNodes).map(walk).join("");
+          if (["strong", "b"].includes(tag)) return "**" + text + "**";
+          if (["em", "i"].includes(tag)) return "*" + text + "*";
+          if (["del", "s", "strike"].includes(tag)) return "~~" + text + "~~";
+          if (tag === "code") return "`" + text + "`";
+          if (tag === "input") return "";
+          if (tag === "a" || node.dataset.href) return "[" + text + "](<" + (node.getAttribute("href") || node.dataset.href).replace(/>/g,"%3E") + ">)";
+          if (tag === "br") return "\n";
+          if (tag === "li") {
+            const check = node.querySelector('input[type="checkbox"]');
+            const prefix = node.parentElement.localName === "ol" ? (Array.from(node.parentElement.children).indexOf(node)+1)+". " : "- ";
+            return prefix + (check ? (check.checked ? "[x] " : "[ ] ") : "") + text.replace(/\n$/, "") + "\n";
           }
-          input.setRangeText(result,start,end,"select"); select(); save().catch(report); input.focus();
-        });tools.append(action);
-      }
-      const edit = () => { preview.hidden = true; input.hidden = false; input.focus(); };
-      const showPreview = () => { render(); input.hidden = true; preview.hidden = false; tools.hidden = true; done.hidden = true; };
-      const done = button("Preview Markdown", "m5 12 4 4L19 6"); header.insertBefore(done, expand);
-      done.addEventListener("mousedown", event => event.preventDefault());
-      done.addEventListener("click", () => { showPreview(); preview.focus(); });
-      preview.setAttribute("aria-label", "Note preview. Double-click text to edit.");
-      const openLink = event => {
-        const link = event.target.closest("[data-href],a[href]"); if (!link) return false;
-        const href = link.dataset.href || link.getAttribute("href");
-        if (!/^https?:\/\//i.test(href || "")) return false;
-        event.preventDefault(); event.stopPropagation();
-        window.openTrustedLinkIn(href, "tab"); return true;
+          if (tag === "div" || tag === "p") return text.replace(/\n$/, "") + "\n";
+          return text;
+        };
+        return Array.from(root.childNodes).map(walk).join("").replace(/\n$/, "");
       };
-      preview.addEventListener("click", openLink);
-      preview.addEventListener("dblclick", event => { if (!event.target.closest('input,[data-href],a')) { edit(); done.hidden = false; } });
-      preview.addEventListener("keydown", event => { if (event.key === "Enter" && event.target === preview) { event.preventDefault(); edit(); } });
-      input.addEventListener("blur", showPreview);
-      input.addEventListener("focus", () => { input.hidden = false; preview.hidden = true; done.hidden = false; });
-      input.addEventListener("keydown", event => {
-        if (event.isComposing) return;
-        const key = event.key.toLowerCase();
-        if ((event.metaKey || event.ctrlKey) && ["b", "i"].includes(key)) {
-          event.preventDefault(); const marker = key === "b" ? "**" : "*";
-          const start = input.selectionStart, end = input.selectionEnd;
-          const selection = input.value.slice(start, end);
-          input.setRangeText(marker + selection + marker, start, end, "end");
-          input.setSelectionRange(start + marker.length, end + marker.length); save().catch(report); return;
-        }
-        if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && input.selectionStart === input.selectionEnd) {
-          const cursor = input.selectionStart, start = input.value.lastIndexOf("\n", cursor - 1) + 1;
-          const line = input.value.slice(start, cursor);
-          const match = line.match(/^(\s*)([-*+] |\d+[.)] )(\[[ xX]\] )?(.*)$/);
+      const render = raw => {
+        rich.replaceChildren(); let list = null, type = "";
+        raw.split("\n").forEach(line => {
+          const match = line.match(/^\s*(?:([-*+])|\d+[.)])\s+(?:\[([ xX])\]\s*)?(.*)$/);
+          let row, text = line;
           if (match) {
-            event.preventDefault();
-            if (!match[4]) input.setRangeText("", start, cursor, "end");
-            else {
-              const number = match[2].match(/^(\d+)([.)]) /);
-              const prefix = number ? (Number(number[1]) + 1) + number[2] + " " : match[2];
-              input.setRangeText("\n" + match[1] + prefix + (match[3] ? "[ ] " : ""), cursor, cursor, "end");
-            }
-            save().catch(report);
+            const next = match[1] ? "ul" : "ol";
+            if (!list || next !== type) { list = this._html(next); type = next; rich.append(list); }
+            row = this._html("li"); list.append(row); text = match[3];
+          } else { list = null; row = this._html("div"); rich.append(row); }
+          row.innerHTML = this._inline(text) || "<br>";
+          if (match && match[2] !== undefined) {
+            row.className = "zn-quick-task";
+            const checkbox = this._html("input"); checkbox.type = "checkbox"; checkbox.checked = match[2].toLowerCase() === "x";
+            checkbox.contentEditable = "false"; checkbox.setAttribute("aria-label", "Task completed"); row.prepend(checkbox);
           }
+        });
+        for (const span of rich.querySelectorAll("[data-href]")) {
+          const href = span.dataset.href;
+          if (!/^https?:\/\//i.test(href || "")) continue;
+          const link = this._html("a"); link.href = href; link.textContent = span.textContent; span.replaceWith(link);
+        }
+      };
+      let composing = false;
+      const commit = (reformat = false) => {
+        if (composing) return;
+        const selection = window.getSelection();
+        const caret = reformat && selection.isCollapsed && selection.rangeCount && rich.contains(selection.anchorNode);
+        const marker = "\uE000";
+        let markerNode;
+        if (caret) { markerNode = document.createTextNode(marker); selection.getRangeAt(0).insertNode(markerNode); }
+        const raw = serialize(rich);
+        input.value = raw.replace(marker, "");
+        if (reformat && caret) {
+          render(raw);
+          const walker = document.createTreeWalker(rich, 4); let node;
+          while ((node = walker.nextNode())) {
+            const at = node.data.indexOf(marker); if (at < 0) continue;
+            node.deleteData(at,1); const range = document.createRange(); range.setStart(node,at); range.collapse(true);
+            selection.removeAllRanges(); selection.addRange(range); break;
+          }
+        } else markerNode?.remove();
+        save().catch(report);
+      };
+      render(input.value);
+      rich.addEventListener("compositionstart", () => composing = true);
+      rich.addEventListener("compositionend", () => { composing = false; commit(true); });
+      rich.addEventListener("input", () => commit(true));
+      rich.addEventListener("change", event => { if (event.target.matches('input[type="checkbox"]')) commit(); });
+      rich.addEventListener("paste", event => {
+        event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); commit(true);
+      });
+      rich.addEventListener("click", event => {
+        const link = event.target.closest("a[href]"); if (!link) return;
+        event.preventDefault(); event.stopPropagation();
+        if (!/^https?:\/\//i.test(link.href)) return;
+        try {
+          const tab = gBrowser.addTab(link.href, { triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal() });
+          gBrowser.selectedTab = tab;
+        } catch (error) { report(error); }
+      });
+      rich.addEventListener("keydown", event => {
+        if ((event.ctrlKey || event.metaKey) && ["b","i"].includes(event.key.toLowerCase())) {
+          event.preventDefault(); document.execCommand(event.key.toLowerCase() === "b" ? "bold" : "italic"); commit();
         }
       });
+      rich.addEventListener("contextmenu", event => {
+        event.preventDefault(); event.stopPropagation();
+        const selection = window.getSelection();
+        const bookmark = selection.rangeCount && rich.contains(selection.anchorNode) ? selection.getRangeAt(0).cloneRange() : null;
+        document.getElementById("zen-notes-quick-menu")?.remove();
+        const popup = document.createXULElement("menupopup"); popup.id = "zen-notes-quick-menu";
+        popup.dataset.zenNotesMenu = "true";
+        (document.getElementById("mainPopupSet") || document.documentElement).append(popup);
+        const act = (command, value) => {
+          rich.focus();
+          if (bookmark && rich.contains(bookmark.startContainer)) { selection.removeAllRanges(); selection.addRange(bookmark); }
+          document.execCommand(command, false, value); commit();
+        };
+        for (const [label,command] of [["Bold","bold"],["Italic","italic"],["Strikethrough","strikeThrough"],["Bulleted list","insertUnorderedList"],["Numbered list","insertOrderedList"]]) popup.append(this._menuItem(label,()=>act(command)));
+        popup.append(this._menuItem("Checkbox list", () => {
+          act("insertUnorderedList");
+          const anchor = selection.anchorNode?.nodeType === 1 ? selection.anchorNode : selection.anchorNode?.parentElement;
+          const list = anchor?.closest("ul");
+          if (list && rich.contains(list)) for (const li of list.children) {
+            if (li.querySelector('input[type="checkbox"]')) continue;
+            li.classList.add("zn-quick-task"); const check = this._html("input"); check.type = "checkbox"; check.contentEditable = "false"; check.setAttribute("aria-label", "Task completed"); li.prepend(check);
+          }
+          commit();
+        }));
+        popup.append(this._menuItem("Insert link…", () => {
+          const value = {value:"https://"};
+          if (Services.prompt.prompt(window,"Insert link","URL",value,null,{}) && /^https?:\/\//i.test(value.value)) act("createLink",value.value);
+        }));
+        popup.append(document.createXULElement("menuseparator"));
+        for (const [label,command] of [["Cut","cut"],["Copy","copy"],["Paste","paste"],["Select all","selectAll"]]) popup.append(this._menuItem(label,()=>act(command)));
+        popup.openPopupAtScreen(event.screenX,event.screenY,true);
+      });
       card._refreshQuickNote = async () => {
-        await this._writes;
-        const current = this._getNote(id); if (!current) return;
-        const latest = await this._readNote(current);
-        input.value = latest.body; title.textContent = latest.title; render();
+        await this._writes; const current = this._getNote(id); if (!current) return;
+        const latest = await this._readNote(current); input.value = latest.body; title.textContent = latest.title; render(input.value);
       };
-      if (!focus || data.body.trim()) { showPreview(); }
-
       title.addEventListener("input", () => save().catch(report));
-      title.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); input.focus(); } });
+      title.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); rich.focus(); } });
       input.addEventListener("input", () => save().catch(report));
       // Keep native text selection; do not let sidebar drag handlers consume it.
       for (const type of ["pointerdown", "mousedown", "dblclick"]) card.addEventListener(type, event => event.stopPropagation());
@@ -761,7 +786,7 @@ return module.exports; })();
       anchor.append(card);
       this._bindQuickMediaStack(anchor, card);
       if (focus) {
-        const target = data.body.trim() ? preview : input;
+        const target = rich;
         target.focus(); anchor.setAttribute("zn-quick-expanded", "");
         window.requestAnimationFrame(() => { if (card.isConnected) target.focus(); });
       }
@@ -4472,6 +4497,7 @@ function run(argv) {
 
     destroy() {
       this._stopQuickMediaStack?.();
+      document.getElementById("zen-notes-quick-menu")?.remove();
       document.getElementById("zen-notes-sidebar-quick")?.remove();
       this._saveSidebarQuickNote = null;
       this._autoNotesSyncStarted = false;

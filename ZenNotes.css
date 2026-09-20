@@ -834,14 +834,12 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-media-controls-toolbar[zen-notes-quick-stack][zn-quick-closing] #zen-notes-sidebar-quick .zn-quick-body { grid-template-rows:0fr !important; opacity:1 !important; transition:grid-template-rows 220ms ease !important; }
 #zen-media-controls-toolbar[zen-notes-quick-stack][zn-quick-closing] .show-on-hover { max-height:0 !important; padding-block:0 !important; overflow:hidden; transition:max-height 220ms ease,padding 220ms ease !important; }
 #zen-notes-sidebar-quick .zn-quick-body { opacity:1 !important; transition:grid-template-rows 220ms ease; }
-#zen-notes-sidebar-quick :is(textarea,.zn-quick-preview)[hidden] { display:none !important; }
-#zen-notes-sidebar-quick .zn-quick-preview { box-sizing:border-box; height:110px; overflow:auto; padding:8px 6px; font:13px/1.5 system-ui; user-select:text; scrollbar-width:thin; scrollbar-color:color-mix(in srgb,currentColor 18%,transparent) transparent; overflow-wrap:anywhere; }
-#zen-notes-sidebar-quick .zn-quick-preview :is(ul,ol) { margin:0; padding-inline-start:20px; }
-#zen-notes-sidebar-quick .zn-quick-task { list-style:none; display:flex; align-items:baseline; gap:6px; }
-#zen-notes-sidebar-quick .zn-quick-task input { appearance:auto; width:13px; height:13px; flex:none; margin:0; }
 @media(prefers-reduced-motion:reduce) { #zen-media-controls-toolbar[zen-notes-quick-stack][zn-quick-closing] :is(.show-on-hover,.zn-quick-body) { transition:none !important; } }
 
 #zen-notes-sidebar-quick [hidden] { display:none !important; }
-#zen-notes-sidebar-quick .zn-quick-format { display:flex; gap:3px; padding:3px 4px; border-radius:8px; background:color-mix(in srgb,currentColor 6%,transparent); }
-#zen-notes-sidebar-quick .zn-quick-format button { opacity:1; pointer-events:auto; font:600 12px system-ui; }
-#zen-notes-sidebar-quick .zn-quick-preview [data-href] { color:LinkText; text-decoration:underline; cursor:pointer; }
+
+#zen-notes-sidebar-quick .zn-quick-rich { height:110px; box-sizing:border-box; overflow:auto; padding:8px 6px; font:13px/1.5 system-ui; outline:none; border:none; user-select:text !important; cursor:text; overflow-wrap:anywhere; scrollbar-width:thin; scrollbar-color:color-mix(in srgb,currentColor 18%,transparent) transparent; }
+#zen-notes-sidebar-quick .zn-quick-rich :is(ul,ol) { margin:0; padding-inline-start:20px; }
+#zen-notes-sidebar-quick .zn-quick-rich .zn-quick-task { list-style:none; }
+#zen-notes-sidebar-quick .zn-quick-rich a { color:LinkText; text-decoration:underline; cursor:pointer; }
+#zen-notes-sidebar-quick .zn-quick-rich input[type=checkbox] { appearance:auto; width:13px; height:13px; margin-inline-end:6px; }

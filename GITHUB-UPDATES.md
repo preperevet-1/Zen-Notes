@@ -1,3 +1,9 @@
+# Zen Notes 0.15.10-quick-test
+
+Quick Notes now use an always-rendered editable Markdown surface. Removed the preview/check button and selection toolbar. Right-click offers bold, italic, strikethrough, lists, task lists and links. Website links open a browser tab. Markdown remains the stored file format.
+
+Validation: JavaScript syntax and DOM checks passed for live bold rendering, caret cleanup, lists, checkbox persistence, appended links and right-click menu. Native Zen editing, clipboard commands and layout still require testing.
+
 # Zen Notes 0.15.9-quick-test
 
 Existing nonempty quick drafts open in rendered Markdown preview. Use the check button to preview after editing; double-click preview text (or Enter on the preview) to edit. HTTP(S) preview links open a tab instead of activating source editing. Text selection exposes a compact toolbar: bold, italic, link, bullets, numbered list and checkbox list.
