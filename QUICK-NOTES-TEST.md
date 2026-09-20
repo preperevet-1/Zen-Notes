@@ -1,3 +1,9 @@
+# Zen Notes 0.15.9-quick-test
+
+Existing nonempty quick drafts open in rendered Markdown preview. Use the check button to preview after editing; double-click preview text (or Enter on the preview) to edit. HTTP(S) preview links open a tab instead of activating source editing. Text selection exposes a compact toolbar: bold, italic, link, bullets, numbered list and checkbox list.
+
+Validation: sidebar DOM tests including Markdown preview, selection formatting and link activation passed. Native Zen interaction and layout remain unverified.
+
 # Zen Notes 0.15.8-quick-test
 
 Opaque stack cards and two-stage collapse: content animates shut before compact cards stack. New Quick Notes explicitly expand and focus on creation. Remove note icon.

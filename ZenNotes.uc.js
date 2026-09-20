@@ -2,7 +2,7 @@
 
 (() => {
   const LOG = "[Zen Notes]";
-  const VERSION = "0.15.8-quick-test";
+  const VERSION = "0.15.9-quick-test";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const NOTE_ICON_SVG = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M6 22C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V4C4 3.46957 4.21071 2.96086 4.58579 2.58579C4.96086 2.21072 5.46957 2 6 2H14C14.3166 1.99949 14.6301 2.06161 14.9225 2.18277C15.215 2.30394 15.4806 2.48176 15.704 2.706L19.292 6.294C19.5168 6.51751 19.6952 6.78335 19.8167 7.07616C19.9382 7.36898 20.0005 7.68297 20 8V20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22H6Z\" fill=\"context-fill\"/>\n<path d=\"M15.6443 3.50091C16.6399 4.43015 17.7732 5.52444 18.6889 6.49206C19.2553 7.09058 18.824 8 18 8H15C14.4477 8 14 7.55228 14 7V4.22684C14 3.36399 15.0136 2.91214 15.6443 3.50091Z\" fill=\"context-stroke\" fill-opacity=\"0.55\"/>\n<path d=\"M3 20V4C3 3.20435 3.3163 2.44151 3.87891 1.87891C4.44152 1.3163 5.20435 1 6 1H14V1.00098C14.4479 1.00046 14.8919 1.08734 15.3057 1.25879C15.7193 1.43022 16.0949 1.68198 16.4111 1.99902L19.9971 5.58496L20.1133 5.70605C20.3773 5.99585 20.5896 6.32951 20.7402 6.69238C20.9122 7.1067 21.0005 7.55143 21 8V20C21 20.7956 20.6837 21.5585 20.1211 22.1211C19.5585 22.6837 18.7957 23 18 23H6C5.20435 23 4.44152 22.6837 3.87891 22.1211C3.3163 21.5585 3 20.7956 3 20ZM5 20C5 20.2652 5.10543 20.5195 5.29297 20.707C5.48051 20.8946 5.73478 21 6 21H18C18.2652 21 18.5195 20.8946 18.707 20.707C18.8946 20.5195 19 20.2652 19 20V7.99805C19.0003 7.81344 18.9642 7.6305 18.8936 7.45996C18.8227 7.28915 18.7181 7.13331 18.5869 7.00293L14.9961 3.41211C14.8658 3.28135 14.7106 3.17712 14.54 3.10645C14.3695 3.03581 14.1865 2.99974 14.002 3H6C5.73478 3 5.4805 3.10543 5.29297 3.29297C5.10543 3.4805 5 3.73478 5 4V20Z\" fill=\"context-stroke\"/>\n<path d=\"M14 2V7C14 7.26522 14.1054 7.51957 14.2929 7.70711C14.4804 7.89464 14.7348 8 15 8H20M15 8H20\" stroke=\"context-stroke\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n</svg>\n";
   const MENU_NOTE_ICON = "chrome://global/skin/icons/page-portrait.svg";
@@ -653,11 +653,49 @@ return module.exports; })();
           } else row.innerHTML = this._inline(item ? item[2] : raw) || "<br>";
         });
       };
+      const tools = this._html("div"); tools.className = "zn-quick-format"; tools.hidden = true;
+      tools.setAttribute("role", "toolbar"); tools.setAttribute("aria-label", "Format selection"); inner.insertBefore(tools, input);
+      let selected = null;
+      const select = () => { selected = { start: input.selectionStart, end: input.selectionEnd }; tools.hidden = selected.start === selected.end || input.hidden; };
+      for (const type of ["select", "mouseup", "keyup"]) input.addEventListener(type, select);
+      for (const [label, kind] of [["Bold","bold"],["Italic","italic"],["Link…","link"],["Bullets","bullet"],["Numbered","number"],["Checkbox","task"]]) {
+        const action = this._html("button"); action.type = "button"; action.textContent = {bold:"B",italic:"I",link:"↗",bullet:"•",number:"1.",task:"☑"}[kind]; action.title = label; action.setAttribute("aria-label", label);
+        action.addEventListener("mousedown", event => { event.preventDefault(); event.stopPropagation(); });
+        action.addEventListener("click", () => {
+          if (!selected) return;
+          let {start,end} = selected; let text = input.value.slice(start,end), result;
+          if (kind === "bold" || kind === "italic") { const marker = kind === "bold" ? "**" : "*"; result = marker + text + marker; }
+          else if (kind === "link") {
+            const value = {value:"https://"};
+            if (!Services.prompt.prompt(window,"Insert link","URL",value,null,{})) return;
+            if (!/^https?:\/\//i.test(value.value)) { this._showNotice("Use an http or https link"); return; }
+            result = "[" + text.replace(/[\[\]]/g,"") + "](<" + value.value.replace(/>/g,"%3E") + ">)";
+          } else {
+            start = input.value.lastIndexOf("\n",start-1)+1;
+            const next = input.value.indexOf("\n",end); end = next < 0 ? input.value.length : next;
+            result = input.value.slice(start,end).split("\n").map((line,i)=>(kind==="bullet"?"- ":kind==="task"?"- [ ] ":(i+1)+". ")+line.replace(/^\s*(?:[-*+] |\d+[.)] )(?:\[[ xX]\] )?/,"")).join("\n");
+          }
+          input.setRangeText(result,start,end,"select"); select(); save().catch(report); input.focus();
+        });tools.append(action);
+      }
       const edit = () => { preview.hidden = true; input.hidden = false; input.focus(); };
-      preview.addEventListener("click", event => { if (!event.target.closest('input[type="checkbox"]')) edit(); });
+      const showPreview = () => { render(); input.hidden = true; preview.hidden = false; tools.hidden = true; done.hidden = true; };
+      const done = button("Preview Markdown", "m5 12 4 4L19 6"); header.insertBefore(done, expand);
+      done.addEventListener("mousedown", event => event.preventDefault());
+      done.addEventListener("click", () => { showPreview(); preview.focus(); });
+      preview.setAttribute("aria-label", "Note preview. Double-click text to edit.");
+      const openLink = event => {
+        const link = event.target.closest("[data-href],a[href]"); if (!link) return false;
+        const href = link.dataset.href || link.getAttribute("href");
+        if (!/^https?:\/\//i.test(href || "")) return false;
+        event.preventDefault(); event.stopPropagation();
+        window.openTrustedLinkIn(href, "tab"); return true;
+      };
+      preview.addEventListener("click", openLink);
+      preview.addEventListener("dblclick", event => { if (!event.target.closest('input,[data-href],a')) { edit(); done.hidden = false; } });
       preview.addEventListener("keydown", event => { if (event.key === "Enter" && event.target === preview) { event.preventDefault(); edit(); } });
-      input.addEventListener("blur", () => { render(); input.hidden = true; preview.hidden = false; });
-      input.addEventListener("focus", () => { input.hidden = false; preview.hidden = true; });
+      input.addEventListener("blur", showPreview);
+      input.addEventListener("focus", () => { input.hidden = false; preview.hidden = true; done.hidden = false; });
       input.addEventListener("keydown", event => {
         if (event.isComposing) return;
         const key = event.key.toLowerCase();
@@ -690,7 +728,7 @@ return module.exports; })();
         const latest = await this._readNote(current);
         input.value = latest.body; title.textContent = latest.title; render();
       };
-      if (!focus) { render(); input.hidden = true; preview.hidden = false; }
+      if (!focus || data.body.trim()) { showPreview(); }
 
       title.addEventListener("input", () => save().catch(report));
       title.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); input.focus(); } });
@@ -723,8 +761,9 @@ return module.exports; })();
       anchor.append(card);
       this._bindQuickMediaStack(anchor, card);
       if (focus) {
-        input.focus(); anchor.setAttribute("zn-quick-expanded", "");
-        window.requestAnimationFrame(() => { if (card.isConnected) input.focus(); });
+        const target = data.body.trim() ? preview : input;
+        target.focus(); anchor.setAttribute("zn-quick-expanded", "");
+        window.requestAnimationFrame(() => { if (card.isConnected) target.focus(); });
       }
     }
 

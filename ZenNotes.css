@@ -840,3 +840,8 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-notes-sidebar-quick .zn-quick-task { list-style:none; display:flex; align-items:baseline; gap:6px; }
 #zen-notes-sidebar-quick .zn-quick-task input { appearance:auto; width:13px; height:13px; flex:none; margin:0; }
 @media(prefers-reduced-motion:reduce) { #zen-media-controls-toolbar[zen-notes-quick-stack][zn-quick-closing] :is(.show-on-hover,.zn-quick-body) { transition:none !important; } }
+
+#zen-notes-sidebar-quick [hidden] { display:none !important; }
+#zen-notes-sidebar-quick .zn-quick-format { display:flex; gap:3px; padding:3px 4px; border-radius:8px; background:color-mix(in srgb,currentColor 6%,transparent); }
+#zen-notes-sidebar-quick .zn-quick-format button { opacity:1; pointer-events:auto; font:600 12px system-ui; }
+#zen-notes-sidebar-quick .zn-quick-preview [data-href] { color:LinkText; text-decoration:underline; cursor:pointer; }
