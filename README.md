@@ -1,3 +1,13 @@
+# Zen Notes 0.15.13-quick-test
+
+Insert link uses `[text]()` with the caret inside the empty URL parentheses, without a prefilled protocol.
+
+# Zen Notes 0.15.12-quick-test
+
+Disable Quick Note title/body spellchecking. Insert link now inserts a Markdown template directly in the editor with its URL selected, without a modal prompt. Paste the URL to render it, or leave the editor after typing. Links inherit text color instead of browser blue.
+
+Validation: XML/DOM regressions, inline link template and spellcheck attributes passed. Native Zen interaction remains to be checked.
+
 # Zen Notes 0.15.11-quick-test
 
 Fix Quick Note opening: empty lines now use XML-valid self-closing breaks in browser chrome. Shortcut failures display an error notice instead of only logging to the console.

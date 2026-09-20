@@ -841,5 +841,5 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-notes-sidebar-quick .zn-quick-rich { height:110px; box-sizing:border-box; overflow:auto; padding:8px 6px; font:13px/1.5 system-ui; outline:none; border:none; user-select:text !important; cursor:text; overflow-wrap:anywhere; scrollbar-width:thin; scrollbar-color:color-mix(in srgb,currentColor 18%,transparent) transparent; }
 #zen-notes-sidebar-quick .zn-quick-rich :is(ul,ol) { margin:0; padding-inline-start:20px; }
 #zen-notes-sidebar-quick .zn-quick-rich .zn-quick-task { list-style:none; }
-#zen-notes-sidebar-quick .zn-quick-rich a { color:LinkText; text-decoration:underline; cursor:pointer; }
+#zen-notes-sidebar-quick .zn-quick-rich a { color:inherit; text-decoration:underline; cursor:pointer; }
 #zen-notes-sidebar-quick .zn-quick-rich input[type=checkbox] { appearance:auto; width:13px; height:13px; margin-inline-end:6px; }
