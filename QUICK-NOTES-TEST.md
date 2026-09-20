@@ -1,3 +1,11 @@
+# Zen Notes 0.15.8-quick-test
+
+Opaque stack cards and two-stage collapse: content animates shut before compact cards stack. New Quick Notes explicitly expand and focus on creation. Remove note icon.
+
+Minimal Markdown: editable source with preview on blur; bullets, ordered lists, bold, italic and clickable task checkboxes. Click preview text to edit. Cmd/Ctrl+B and I wrap selection; Enter continues list numbering/bullets/tasks, with an empty item ending the list. Website Add to Note refreshes any matching Quick Note card after updating the file.
+
+Validation: syntax and sidebar DOM regressions passed, including Markdown/task persistence, list continuation, delayed collapse and external link append refresh. Native Zen visuals still require verification.
+
 # Zen Notes 0.15.7-quick-test
 
 Unify stack hover and keyboard-focus expansion. Collapse card bodies before applying stacked transforms, clip collapsed cards to a consistent 34px height and keep all cards expanded while editing. Prevents exposed note text overlapping media cards when moving toward Space buttons.
