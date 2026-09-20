@@ -1,3 +1,9 @@
+# Zen Notes 0.15.11-quick-test
+
+Fix Quick Note opening: empty lines now use XML-valid self-closing breaks in browser chrome. Shortcut failures display an error notice instead of only logging to the console.
+
+Validation: reproduced the invalid XML failure in 0.15.10; the fixed build passes XML fragment and Quick Note DOM regressions. Native Zen shortcut interaction remains to be verified.
+
 # Zen Notes 0.15.10-quick-test
 
 Quick Notes now use an always-rendered editable Markdown surface. Removed the preview/check button and selection toolbar. Right-click offers bold, italic, strikethrough, lists, task lists and links. Website links open a browser tab. Markdown remains the stored file format.
