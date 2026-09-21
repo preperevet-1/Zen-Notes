@@ -1,3 +1,11 @@
+# Zen Notes 0.15.14-quick-test
+
+Create multiple independent Quick Notes with the shortcut or Quick Note menu. Restore their IDs across restarts, migrate the previous single draft, and remove only the selected draft when deleting or opening as a normal note. Links use theme-aware blue. Task checkboxes align with list markers; Enter continues tasks unchecked, and incomplete task prefixes remain editable.
+
+PDF cards keep compact attachment references in DOM instead of embedding the entire base64 payload in attributes. Binary conversion yields periodically to keep the browser responsive.
+
+Validation: syntax and DOM regressions passed for draft creation/restoration/deletion isolation, live Markdown, task prefix entry, task Enter continuation, link opening and a 4 MiB PDF payload rendered as a small card. Actual Zen rendering and the reported PDF file still require native verification.
+
 # Zen Notes 0.15.13-quick-test
 
 Insert link uses `[text]()` with the caret inside the empty URL parentheses, without a prefilled protocol.
