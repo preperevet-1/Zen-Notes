@@ -1,3 +1,9 @@
+# Zen Notes 0.15.15-quick-test
+
+Preserve the editable DOM and caret during ordinary Quick Note typing. Preserve leading spaces after task markers and show whitespace; only re-render when Markdown formatting is introduced. Give empty task rows stable line height. Combined stack uses explicit collapsed and expanded positioning with stable arrival order and one observer across draft additions.
+
+Validation: DOM regressions passed, including task spaces and selection-node preservation. Native Zen caret and stack animation still require visual verification; the supplied video could not be decoded locally.
+
 # Zen Notes 0.15.14-quick-test
 
 Create multiple independent Quick Notes with the shortcut or Quick Note menu. Restore their IDs across restarts, migrate the previous single draft, and remove only the selected draft when deleting or opening as a normal note. Links use theme-aware blue. Task checkboxes align with list markers; Enter continues tasks unchecked, and incomplete task prefixes remain editable.
