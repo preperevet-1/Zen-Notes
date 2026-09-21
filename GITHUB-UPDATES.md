@@ -1,3 +1,9 @@
+# Zen Notes 0.15.17-quick-test
+
+Handle Quick Note caret navigation locally and cancel browser navigation defaults for arrows and boundary keys. Plain link clicks allow editing; Ctrl/Cmd-click explicitly opens the link.
+
+Validation: DOM regressions passed including navigation cancellation and link click behavior. Native Zen interaction remains to be verified.
+
 # Zen Notes 0.15.16-quick-test
 
 Animate actual combined-stack card displacement across layout changes. Remove competing transform transitions, cancel previous motion on hover reversal, and respect reduced motion.
