@@ -1,3 +1,9 @@
+# Zen Notes 0.15.16-quick-test
+
+Animate actual combined-stack card displacement across layout changes. Remove competing transform transitions, cancel previous motion on hover reversal, and respect reduced motion.
+
+Validation: DOM regressions and simulated layout-transition/reversal checks passed. Native Zen visual smoothness still requires verification.
+
 # Zen Notes 0.15.15-quick-test
 
 Preserve the editable DOM and caret during ordinary Quick Note typing. Preserve leading spaces after task markers and show whitespace; only re-render when Markdown formatting is introduced. Give empty task rows stable line height. Combined stack uses explicit collapsed and expanded positioning with stable arrival order and one observer across draft additions.
