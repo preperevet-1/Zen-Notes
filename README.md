@@ -1,345 +1,186 @@
-# Zen Notes 0.15.18-quick-test
+# Zen Notes
 
-Combined Quick Note/media stack now follows the installed ZenMediaController.mjs and zen-media-controls.css flow layout, fixed container height, transforms, easing and two-pass reindexing. Removed the custom absolute positioning, delayed collapse and Web Animations transition. Cards remain opaque as requested.
+### Your notes, inside Zen. — Version 1.0
 
-PDF import via file picker and drag/paste shares a yielding chunked base64 encoder and inserts compact attachment references. File picker now explicitly accepts PDFs and uses document Markdown, not image Markdown, for PDFs. Main-note Enter continues lists/tasks and exits empty items; Shift+Enter does not repeat markers.
+Markdown notes in regular browser tabs, quick drafts in the sidebar, and a way to save text, links and images from the web without leaving your workspace.
 
-Validation: syntax and DOM regressions passed, including attachment byte equality across chunk boundaries, compact PDF card rendering, stack state, and main-note Enter/Shift+Enter cases. The reported native Zen freeze and visual animation require native verification.
+**Local Markdown · Live Preview · Quick Notes · Tables & Math · Automatic Notes Sync**
 
-# Zen Notes 0.15.17-quick-test
+## Get started
 
-Handle Quick Note caret navigation locally and cancel browser navigation defaults for arrows and boundary keys. Plain link clicks allow editing; Ctrl/Cmd-click explicitly opens the link.
+Zen Notes is a **Sine mod for Zen Browser**, not a standalone application or a Firefox extension. Both the JavaScript and stylesheet must load.
 
-Validation: DOM regressions passed including navigation cancellation and link click behavior. Native Zen interaction remains to be verified.
+1. Install the mod through Sine using this repository: `https://github.com/preperevet-1/Zen-Notes`.
+2. Enable Zen Notes and fully restart Zen.
+3. Open the sidebar **+** menu and choose **Create Note**, or use **⌘⇧N** on macOS / **Ctrl+Shift+N** on Windows and Linux.
 
-# Zen Notes 0.15.16-quick-test
+For a manual update of an existing installation, replace `ZenNotes.uc.js`, `ZenNotes.css` and `theme.json` together, then restart Zen. Upload the release files to the repository root rather than adding another version directory inside it. Keep the bundled library license files in the repository.
 
-Animate actual combined-stack card displacement across layout changes. Remove competing transform transitions, cancel previous motion on hover reversal, and respect reduced motion.
+## Notes that work like tabs
 
-Validation: DOM regressions and simulated layout-transition/reversal checks passed. Native Zen visual smoothness still requires verification.
+- Create, rename, duplicate, pin, unpin and delete notes from the relevant sidebar and tab menus.
+- Edit the title directly in the note. Changes save automatically to local Markdown files.
+- Keep notes in their original Spaces. Adding content from another Space updates the original note without creating a second tab there.
+- Link notes together with **Link to Note** or `[[note title]]` / `[[note-id|label]]`.
+- Use in-note search, selection, undo and redo.
+- Use Zen's note appearance / Boost integration to customize presentation.
 
-# Zen Notes 0.15.15-quick-test
+Closing a normal note tab is different from deleting its saved note. Use **Delete Note** to remove it.
 
-Preserve the editable DOM and caret during ordinary Quick Note typing. Preserve leading spaces after task markers and show whitespace; only re-render when Markdown formatting is introduced. Give empty task rows stable line height. Combined stack uses explicit collapsed and expanded positioning with stable arrival order and one observer across draft additions.
+## Markdown & editing
 
-Validation: DOM regressions passed, including task spaces and selection-node preservation. Native Zen caret and stack animation still require visual verification; the supplied video could not be decoded locally.
+Live Preview renders Markdown while keeping its source editable. Select text for the floating formatting toolbar, or right-click for the editing menus.
 
-# Zen Notes 0.15.14-quick-test
+| Content | Syntax or control |
+| --- | --- |
+| Headings | `# Heading`, `## Heading`, `### Heading` and Markdown heading levels |
+| Bold / italic | `**bold**`, `*italic*` |
+| Underline / strike | Formatting menu; `~~strikethrough~~` |
+| Bulleted / numbered lists | `- Item`, `1. Item` |
+| Tasks | `- [ ] Task`, `- [x] Completed task` |
+| Quotes / callouts | `> Quote`, `> [!note] Note` |
+| Inline / fenced code | Backticks or fenced code blocks; code copy control |
+| Inline / block math | `$...$` and `$$` blocks, rendered with bundled KaTeX |
+| Links | `[label](https://example.com)`, URLs, links to other notes |
+| Tags | `#tag`, with theme-aware styling |
+| Footnotes | Footnote insertion menu, `[^1]` and `[^1]: Definition` |
+| Divider | `---` |
+| Spoilers / colors | Formatting menus, text and background color choices |
+| Date | Insert date from the editor menu |
 
-Create multiple independent Quick Notes with the shortcut or Quick Note menu. Restore their IDs across restarts, migrate the previous single draft, and remove only the selected draft when deleting or opening as a normal note. Links use theme-aware blue. Task checkboxes align with list markers; Enter continues tasks unchecked, and incomplete task prefixes remain editable.
+**Enter** continues a list with its next marker or number. Task continuation creates an unchecked item. Enter on an empty list item exits the list. **Shift+Enter** inserts a new line without repeating the list marker.
 
-PDF cards keep compact attachment references in DOM instead of embedding the entire base64 payload in attributes. Binary conversion yields periodically to keep the browser responsive.
+### Tables
 
-Validation: syntax and DOM regressions passed for draft creation/restoration/deletion isolation, live Markdown, task prefix entry, task Enter continuation, link opening and a 4 MiB PDF payload rendered as a small card. Actual Zen rendering and the reported PDF file still require native verification.
+Insert a Markdown table and edit cells directly. The table context menu supports:
 
-# Zen Notes 0.15.13-quick-test
+- Adding and deleting rows or columns.
+- Moving rows up/down and columns left/right.
+- Left, center and right alignment by column.
+- Ascending and descending column sorting.
+- Deleting the entire table.
 
-Insert link uses `[text]()` with the caret inside the empty URL parentheses, without a prefilled protocol.
+Tab / Shift+Tab move between cells. Enter moves down; Shift+Enter inserts a line break inside a cell.
 
-# Zen Notes 0.15.12-quick-test
+## Images, PDFs & video
 
-Disable Quick Note title/body spellchecking. Insert link now inserts a Markdown template directly in the editor with its URL selected, without a modal prompt. Paste the URL to render it, or leave the editor after typing. Links inherit text color instead of browser blue.
+- Paste or drop images into a note, or choose an image from disk.
+- Resize an image using its small corner handle. Images have rounded corners.
+- Right-click an image to **Copy Image**, **Save Image…** or delete it.
+- Import a PDF through the file picker, drag-and-drop or clipboard file insertion. PDFs appear as document links/cards, not images.
+- Open attached PDFs from their links.
+- Supported YouTube links show video previews; their context menu can hide or restore the preview.
 
-Validation: XML/DOM regressions, inline link template and spellcheck attributes passed. Native Zen interaction remains to be checked.
+Embedded images and PDFs are stored in the note's Markdown as data URLs. The editor uses short internal references so it does not need to display the encoded payload. Large attachments still increase note size and are excluded from Notes Sync.
 
-# Zen Notes 0.15.11-quick-test
+## Quick Notes
 
-Fix Quick Note opening: empty lines now use XML-valid self-closing breaks in browser chrome. Shortcut failures display an error notice instead of only logging to the console.
+Use **Quick Note** in the sidebar context menu or **⌘⇧⌥N / Ctrl+Shift+Alt+N**. Each invocation creates a separate draft.
 
-Validation: reproduced the invalid XML failure in 0.15.10; the fixed build passes XML fragment and Quick Note DOM regressions. Native Zen shortcut interaction remains to be verified.
+- Multiple drafts share the sidebar stack with Zen's media cards.
+- Hover expands the stack; keyboard focus keeps it open while editing.
+- Edit the title and text directly, with automatic local saving and restoration after restart.
+- Basic Markdown includes bold, italic, strikethrough, links, bullets, numbered lists and task checkboxes.
+- Right-click for formatting and clipboard actions. There is no floating selection toolbar or preview checkbox.
+- **Insert link** inserts `[text]()` with the caret inside the empty destination.
+- Plain clicks edit link text. **⌘-click / Ctrl-click** opens the link.
+- Spellchecking is disabled in the quick title and editor.
+- The open button turns the draft into a regular note tab.
 
-# Zen Notes 0.15.10-quick-test
+**The × button deletes that Quick Note**, including its saved draft. It does not just hide the card. Other drafts remain intact.
 
-Quick Notes now use an always-rendered editable Markdown surface. Removed the preview/check button and selection toolbar. Right-click offers bold, italic, strikethrough, lists, task lists and links. Website links open a browser tab. Markdown remains the stored file format.
+## Save content from the web
 
-Validation: JavaScript syntax and DOM checks passed for live bold rendering, caret cleanup, lists, checkbox persistence, appended links and right-click menu. Native Zen editing, clipboard commands and layout still require testing.
+Select website text and use **Add text to note**, or use the add-selection shortcut. Browser context menus also provide note destinations for supported links and images.
 
-# Zen Notes 0.15.9-quick-test
+Choose an existing note from any Space or create a new one. Captured content can include a source reference. Adding to an open Quick Note refreshes that draft; adding to a note in another Space does not move it or create another representation of it.
 
-Existing nonempty quick drafts open in rendered Markdown preview. Use the check button to preview after editing; double-click preview text (or Enter on the preview) to edit. HTTP(S) preview links open a tab instead of activating source editing. Text selection exposes a compact toolbar: bold, italic, link, bullets, numbered list and checkbox list.
+## Keyboard shortcuts
 
-Validation: sidebar DOM tests including Markdown preview, selection formatting and link activation passed. Native Zen interaction and layout remain unverified.
+Use **⌘** on macOS and **Ctrl** on Windows/Linux for the modifier below. Formatting shortcuts apply while the main note editor has focus.
 
-# Zen Notes 0.15.8-quick-test
+| Action | macOS | Windows / Linux |
+| --- | --- | --- |
+| New note | ⌘ Shift N | Ctrl Shift N |
+| New Quick Note | ⌘ Shift Option N | Ctrl Shift Alt N |
+| Add selected text to a note | ⌘ Shift A | Ctrl Shift A |
+| Bold | ⌘ B | Ctrl B |
+| Italic | ⌘ I | Ctrl I |
+| Insert link | ⌘ K or ⌘ U | Ctrl K or Ctrl U |
+| Underline | ⌘ Shift U | Ctrl Shift U |
+| Strikethrough | ⌘ Shift X | Ctrl Shift X |
+| Inline code | ⌘ E | Ctrl E |
+| Code formatting | ⌘ Shift K | Ctrl Shift K |
+| Quote | ⌘ Shift I | Ctrl Shift I |
+| Spoiler | ⌘ Shift P | Ctrl Shift P |
+| Select all | ⌘ A | Ctrl A |
+| Undo | ⌘ Z | Ctrl Z |
+| Redo | ⌘ Shift Z or ⌘ Y | Ctrl Shift Z or Ctrl Y |
+| Find in note | ⌘ F | Ctrl F |
 
-Opaque stack cards and two-stage collapse: content animates shut before compact cards stack. New Quick Notes explicitly expand and focus on creation. Remove note icon.
+Additional editor keys:
 
-Minimal Markdown: editable source with preview on blur; bullets, ordered lists, bold, italic and clickable task checkboxes. Click preview text to edit. Cmd/Ctrl+B and I wrap selection; Enter continues list numbering/bullets/tasks, with an empty item ending the list. Website Add to Note refreshes any matching Quick Note card after updating the file.
+- **Enter / Shift+Enter:** continue a list / new line without a marker.
+- **Tab / Shift+Tab:** indent / outdent the current main-note line; move between table cells when editing a table.
+- **Enter / Shift+Enter in Find:** next / previous match. Escape closes Find.
+- **Escape in Quick Notes:** leave the focused editor.
+- **⌘B / Ctrl+B** and **⌘I / Ctrl+I** also work in Quick Notes. Other quick formatting is available through right-click.
 
-Validation: syntax and sidebar DOM regressions passed, including Markdown/task persistence, list continuation, delayed collapse and external link append refresh. Native Zen visuals still require verification.
+The mod reserves its note-creation shortcuts, which can overlap with browser defaults. Keyboard layout and other mods may affect shortcut handling.
 
-# Zen Notes 0.15.7-quick-test
+## Import, export & platform integration
 
-Unify stack hover and keyboard-focus expansion. Collapse card bodies before applying stacked transforms, clip collapsed cards to a consistent 34px height and keep all cards expanded while editing. Prevents exposed note text overlapping media cards when moving toward Space buttons.
+The editor context menu provides:
 
-Validation: syntax and nine sidebar DOM checks, including pointer leave and focus transitions. Native rendering remains to be verified.
+- **Import Markdown…** to bring in a `.md` file.
+- **Export…** for Markdown, HTML or PDF.
+- **Print / Save as PDF…** for the browser print flow. PDF output defaults to Letter page size.
+- **Show in Finder** on macOS or **Show in Files** on Windows/Linux.
+- **Send to Apple Notes** and available system sharing services on macOS only.
 
-# Zen Notes 0.15.6-quick-test
+PDF import and export use different paths. Native PDF behavior depends on the Zen version and operating system; if direct export fails, use **Print / Save as PDF…**. Recent PDF and sidebar changes have local regression coverage, but are not fully verified on every supported platform.
 
-Disable window dragging across Quick Note and stop pointer presses propagating to sidebar handlers without cancelling native selection. Thin low-contrast scrollbar with transparent track. Shared stack hover/focus expands Quick Note together with media cards. Add the same page icon used by the New Note menu before the title.
+## Automatic Notes Sync
 
-Validation: syntax and eight sidebar DOM checks passed, including preservation of default text selection and pointer event isolation. Native window dragging, scrollbar appearance and hover visuals still need verification in Zen.
+Notes Sync uses your signed-in Zen / Mozilla account through a custom Sync engine. With the mod installed on each device and browser Sync configured, it enables and schedules itself automatically: there is no regular **Enable Sync** or **Sync Now** step. Background checks run approximately every two minutes while Zen is open.
 
-# Zen Notes 0.15.5-quick-test
+This feature remains **experimental in 1.0**:
 
-Remove native textarea borders and focus chrome. Compact card header is 34px including padding; expanded text area is 110px. Close now deletes the local draft through the normal deletion path, clears its remembered ID and removes matching cards from open windows. Opening again creates a blank note. Expand still keeps the note.
+- It transfers text snapshots up to **64 KiB per serialized snapshot**.
+- Notes containing embedded attachments are skipped.
+- Deletions and Space placement do **not** sync.
+- Conflicting versions may appear as a **Sync copy**; there is no collaborative text merge.
+- Offline or unavailable Sync retries later.
+- Account binding prevents automatically uploading the same profile's notes to a different account. Use a separate browser profile for another account.
 
-The shared media stack now orders visible cards by arrival; a media player appearing after Quick Note can become the front card. Reappearing media is treated as newly visible.
+The compatibility engine name remains `zennotestest`; changing that identifier would separate existing installations' sync data. Keep a local backup before relying on Sync for migration.
 
-Seven DOM tests passed, including deletion/reopen and newly arriving media order. Native appearance remains unverified. Existing experimental Sync does not propagate deletions to other profiles.
+## Storage & backups
 
-# Zen Notes 0.15.4-quick-test — Shared media stack
+Notes live in the active Zen profile's `zen-notes` directory:
 
-Quick Note now lives inside Zen's media controls toolbar and shares its card styling and stacked/list presentation. A scoped adapter assigns visual stack positions without changing Zen's media-controller records. Hiding or expanding the note restores native media styling. Title is plain editable text without input chrome. Smaller action buttons appear on hover or keyboard focus.
+- `<note-id>.md` — note title and Markdown content.
+- `index.json` — note metadata.
+- `.deleted/` — local deletion markers.
+- `sync-test-v1/` — Sync engine working data.
 
-Validation: syntax and seven sidebar tests covering persistence, restore, opening without duplication, shared stack, hidden media and cleanup passed. Actual native Zen layout remains unverified; this is a test build.
+Quick draft IDs are also stored in browser preferences. Backing up the whole profile preserves those preferences as well as the notes. To back up note content alone, copy the `zen-notes` directory while Zen is closed or export individual notes as Markdown.
 
-# Zen Notes 0.15.3-quick-test — Sidebar Quick Notes
+Local editing does not require Sync. Sync, remote images, video metadata and opening external links can use the network.
 
-Open Quick Note from the sidebar context menu, or Cmd+Shift+Option+N on macOS / Ctrl+Shift+Alt+N on Windows/Linux. The card sits immediately above Zen's media toolbar.
+## Repository contents
 
-Collapsed: title and Open as note / Hide buttons. Hover or keyboard focus expands the text area. Focus keeps it expanded while typing; Escape blurs the field. Move the pointer away to collapse. The close button hides the card without deleting its note. Open as note opens the original note and finishes the quick draft; the next Quick Note creates a fresh draft.
+| File | Purpose |
+| --- | --- |
+| `ZenNotes.uc.js` | Note editor, sidebar integration, storage and Sync |
+| `ZenNotes.css` | Main editor and Quick Note styles |
+| `theme.json` | Sine manifest and version |
+| `README.md` | Installation, features and usage |
+| `KATEX-LICENSE.txt` | Bundled KaTeX license |
+| `LUCIDE-LICENSE.txt` | Bundled Lucide icons license |
 
-This prototype uses plain-text/Markdown input, not the full live-preview editor. Input persists in a regular local note and participates in the existing automatic text Sync. A saved active draft reappears collapsed after restarting Zen. Existing Sync prototype restrictions remain.
+No build step is required. Upload these files together; old test guides, generated archives and development scripts are not part of this release.
 
-Tests: five sidebar DOM scenarios (save, hide/reopen, restore, expansion without duplicate, fresh draft), 50 editor DOM checks and PDF mocks passed. Native Zen sidebar placement, hover rendering and compact mode still require visual testing.
+## Credits
 
-# Zen Notes 0.15.2-sync-test — Automatic Notes Sync
-
-Install this build on both devices, restart Zen, and use the same Mozilla Account with Zen Sync. No Enable/Sync Now menu actions are needed or shown.
-
-Notes Sync starts automatically after launch (5-second delay), after saves (5-second debounce), and polls every 2 minutes while Zen is running to receive remote changes. One window coordinates scheduling; overlapping runs are prevented. Offline/errors/locked Sync retry on a later interval. Changes made during a running sync are picked up on a later interval. Normal background success does not show a toast.
-
-The existing account binding is retained. Signing into a different account in the same profile does not upload notes to that account. Use a separate profile for another account.
-
-Prototype limits remain: text snapshots up to 64 KiB; notes with embedded attachments are skipped; deletion and Space placement do not sync; differing remote versions can appear as Sync copy. This is not collaborative text merging. To disable this test engine, disable the test mod and turn off services.sync.engine.zennotestest in about:config; the running test mod automatically enables its engine.
-
-Validation: 50 editor regression tests, PDF mocks, snapshot restore/conflict tests and automatic scheduling guards. Real two-device transfer was reported working by the user on the previous build; the new automatic timing has only been checked locally with mocked Sync.
-
-
-# Zen Notes 0.15.1-sync-test — Account API and PDF compatibility
-
-Mozilla Account access uses getFxAccountsSingleton() on current Zen, with the legacy fxAccounts export as a fallback. All three account-access paths share this helper.
-
-PDF export now reports preparation/saving progress, identifies the failing stage, and surfaces picker errors. It recognizes both paperId and paperName and both print-settings factories. The underlying cause of silent non-saving on Windows/Linux is not yet reproduced.
-
-A separate Print / Save as PDF… command uses Zen's built-in print dialog. Choose Save to PDF there, save, then close the prepared preview tab. Its temporary HTML is deleted when that tab closes. This bypasses the mod's silent-print settings and file picker.
-
-Tests: 50 editor checks, PDF success/failure mocks, native-dialog lifecycle mocks for Windows/Linux, picker-error handling, and nine Sync tests each with current and legacy account APIs. Real cross-device Sync and native Windows/Linux PDF output remain unverified.
-
-Install on both devices and restart Zen. Enable Test Notes Sync, then Sync Notes Now. All prototype limitations in SYNC-TEST.md still apply.
-
-# Zen Notes 0.15.0-sync-test
-
-Experimental Mozilla/Firefox Sync engine, opt-in from the note context menu. This is a two-profile text-note transfer prototype, not a production continuous-merge implementation. It uses CryptoWrapper and the installed Firefox Sync Store / LegacyTracker / SyncEngine interfaces.
-
-## Test on two Zen profiles/devices
-
-1. Install Sine and this same build on both, then restart Zen.
-2. Sign in to the same Mozilla Account and enable Zen Sync on both.
-3. Create a small text-only note on device A with a unique phrase.
-4. Right-click inside a note: Enable Test Notes Sync, then Sync Notes Now.
-5. On device B, open/create a note to access the same context menu, enable Test Notes Sync, then Sync Notes Now.
-6. Type `notes` in the address bar to find and open the transferred note. Imported notes do not automatically open tabs.
-7. Repeat Sync Notes Now: an unchanged note should not be duplicated.
-8. Edit the original separately on A and B, sync A then B. Different incoming text is kept as a (Sync copy), never written over the local original. This prototype can create such a copy for ordinary remote edits too.
-9. Disable Test Notes Sync to stop this engine. Disabling does not delete snapshots already uploaded.
-
-## Prototype scope
-
-- Text-only snapshots, at most 64 KiB of JSON per note. Notes containing embedded base64 images/PDFs are skipped in full, with a skipped count in the notice. URL links remain links; remote content is not uploaded.
-- Snapshots are immutable and previous revisions remain in the Sync collection. Download restores the newest snapshot per original note; divergent local content is retained separately.
-- Local deletion markers prevent resurrection on that profile. Deletion does not propagate; a fresh profile may restore a previously deleted note from its existing remote snapshot.
-- Space IDs and placement are not synchronized in this prototype. Open the imported note in the desired Space.
-- One Mozilla Account per test profile. Switching accounts blocks this engine; use a separate profile.
-- No native account password/token handling: Sync supplies encryption and transport through the logged-in account.
-- Uses a separate `zennotestest` Sync collection. Local snapshots live in `zen-notes/sync-test-v1`.
-- Existing PDF functionality is unchanged from 0.14.31.
-
-## Validation
-
-50 editor DOM regressions and mocked PDF tests passed. Nine additional local tests cover snapshot deduplication, empty-store restore, repeated import, conflict copies, deletion markers, invalid record IDs, embedded attachments, account changes and preservation of local notes on engine wipe.
-
-Actual transfer through Mozilla servers between two logged-in Zen profiles has NOT been verified. A completed local/mock test is not proof of server support. If Sync Notes Now reports failure, inspect `about:sync-log`; do not share tokens or the full account log publicly.
-
-
-# Zen Notes 0.14.31 alpha — Native paper property correction
-
-Replace unsupported paperName with paperId, matching the print implementation shipped in installed Zen. Print-settings tests now use a sealed object containing only the supported setting names to catch unsupported native-property writes.
-
-Validation: syntax, DOM and PDF mock regressions; native PDF output remains unverified.
-
-# Zen Notes 0.14.30 alpha — Correct native print settings API
-
-Use createNewPrintSettings() instead of the nonexistent newPrintSettings property. Set the Mozilla Save to PDF printer name and initialized flag, following print.js shipped with the installed Zen 1.22.1b. Correct the test service mock to expose the actual factory method and reject obsolete property access.
-
-Validation: syntax and DOM/PDF regressions; native PDF output remains unverified.
-
-# Zen Notes 0.14.29 alpha — PDF through managed browser tab
-
-Export loads a temporary HTML file in a normal tabbrowser-managed tab and waits for top-level network completion before printing. This removes dependence on an uninitialized custom browser/docshell and supports remote content browsers. The temporary tab and file are cleaned up after success or failure. PDF label, page size and platform menus are unchanged.
-
-Validation: DOM and mocked managed-tab export tests. Native PDF output still needs verification in Zen.
-
-# Zen Notes 0.14.28 alpha — Wait for PDF browser initialization
-
-Wait for Gecko to create the export browser's docshell and browsing context before disabling scripts or loading the document. Initialization is bounded to ten seconds and failure cleans up the browser. Fixes the reported null browser.docShell access.
-
-Validation: DOM, PDF and platform regressions, including delayed docshell creation. Native PDF export remains unverified.
-
-Replace mod files and fully restart Zen.
-
-# Zen Notes 0.14.27 alpha — PDF and platform hotfix
-
-PDF preparation now uses a dedicated nonremote content browser instead of an HTML iframe in browser chrome. Wait for the export document, fonts and images, then print to PDF. Preparation has a timeout; errors include their reason and temporary browser resources are removed. PDF page dimensions remain unchanged.
-
-Windows/Linux use Show in Files; Apple Notes and macOS sharing are gated to macOS. Reveal uses the system file manager with a parent-directory fallback.
-
-Validation: DOM and mocked PDF/platform regressions. Native headless Zen exited before testing, so actual PDF output and Windows/Linux native integration remain unverified.
-
-Replace the mod files and restart Zen after updating.
-
-# Zen Notes 0.14.26 alpha — PDF export fix
-
-PDF export now uses Gecko's outputDestination=kOutputDestinationFile instead of the obsolete printToFile property. The isolated export frame permits printing, and success is only reported after a nonempty output file exists. The export picker label is now PDF (.pdf); page dimensions remain 8.5 × 11 inches.
-
-Validation: DOM regressions and mocked PDF success/failure checks. Actual printing in Zen still requires manual verification.
-
-Replace mod files and fully restart Zen after updating through Sine.
-
-# Zen Notes 0.14.25 alpha — Add to Note across Spaces
-
-Add to Note lists all stored notes rather than only visible/open tabs. Appending updates the original note file without opening, adopting or creating a tab in the source Space. Open-note creation reuses an existing tab across all stored Spaces/windows. Pending edits in an existing note editor are saved before append and its view is refreshed afterward. Existing duplicate tabs are not removed automatically.
-
-Validation: 50 DOM checks plus cross-Space append and PDF settings tests passed. Cross-Space tests assert no tab creation, no destination mounting and unchanged active Space. Live Zen workspace behavior remains unverified.
-
-Upload archive contents to the repository root; updatedAt is advanced for Sine. Restart Zen after updating.
-
-# Zen Notes 0.14.24 alpha
-
-Remove the floating image action panel. Keep only the bottom-right resize corner, drawn with a solid gray 2px stroke and no blur, filters or shadow. Resize behavior is unchanged.
-
-Validation: syntax and markup checks; live Zen appearance remains unverified. updatedAt advanced for Sine.
-
-# Zen Notes 0.14.23 alpha — Image panel corrections
-
-Explicit SVG namespace for Gecko/XHTML image controls. Fixed two-button Preview / View code panel with contrasting surface. Image frames align to their own height instead of stretching to taller neighbors; controls are clipped within the frame. Removed image hover outline and added a neutral gray resize grip with contrast on dark/light images.
-
-Validation: syntax and DOM regressions. Live Zen visual validation remains outstanding. updatedAt advanced for Sine.
-
-# Zen Notes 0.14.22 alpha — Image controls
-
-Top-right rounded two-icon panel for Preview and View code. Bottom-right curved resize grip replaces the centered line. Corner dragging combines horizontal and vertical movement while retaining aspect ratio. Hover controls use theme colors. updatedAt advanced for Sine.
-
-Validation: JavaScript syntax; live Zen appearance remains unverified.
-
-# Zen Notes 0.14.21 alpha — Tags, images and PDF export
-
-Fix unchecked alignment menu items. Theme-colored hashtag pills. PDF Letter option in Export (native Gecko printing, 8.5 × 11 inches). Save Image in image context menu. Rounded images with hover outline, Preview and View code controls, minimal bottom resize handle and right/bottom edge dragging. Preview closes with Escape. Updated updatedAt timestamp for Sine update detection; GitHub language override included.
-
-Validation: 49 DOM regressions plus a mocked native PDF settings/output-path test passed. Actual PDF creation, image downloads and native Zen visual interaction have not been verified in this environment. PDF export uses the HTML exporter; complex Markdown layout may differ from the editor.
-
-Upload archive contents to the repository root, including theme.json. Then check for updates in Sine and fully restart Zen. Personal notes were not changed.
-
-# Zen Notes 0.14.20 alpha
-
-Preserve source offsets when focusing table cells so empty formatting places the caret inside delimiters. Give callout bodies independent editing hosts and exempt their native input from whole-note selection handling. Block rendered-math selection through selectstart/mousedown and a selectionchange guard, while retaining source editing through View code.
-
-Validation: syntax and 46 jsdom tests passed, including exact underline caret offset in a cell, math selection clearing and callout native beforeinput/focus. Live Zen behavior remains unverified. Replace mod files and fully restart Zen.
-
-# Zen Notes 0.14.19 alpha
-
-Table arrow keys explicitly move/extend the caret; Shift+Enter inserts an actual editing newline, serialized as a Markdown table break. Hide Copy while code is editing. Rendered math disables text selection. Callout body supports direct plain-text editing and Enter while the title remains in source editing. Native table context menu follows Format / clipboard / Row / Column / sorting groups; all existing table actions remain, without the excluded lookup, linking or external-service entries.
-
-Validation: syntax and 43 jsdom tests passed. Native browser caret movement, clipboard commands and visual behavior require live Zen validation. Replace the mod files and fully restart Zen.
-
-# Zen Notes 0.14.18 alpha — Tables and block interaction
-
-Retain code styling during input and anchor code controls to their line. Read-only Math and Callout fields reject native focus; View code explicitly enters editing. Table repeat key events insert printable characters; compact cell padding and consistent transparent edge controls with 16px plus icons. Custom grouped table menu preserves all 16 existing actions and their disabled states.
-
-Validation: syntax and 41 jsdom tests, including code input, read-only block focus, repeat key dispatch and table menu action preservation. Native key repeat, popup placement and live Zen visuals remain unverified.
-
-Replace mod files and fully restart Zen.
-
-# Zen Notes 0.14.17 alpha
-
-Smaller toolbar, 16px Text control, 190px submenu and 18/17/16px headings. Reset native button appearance to remove square copy borders. Replace View code labels with Lucide code-xml icons (https://lucide.dev/icons/code-xml). Smooth callout borders and math hover strokes, respecting reduced motion. Refresh cached math source before rendering; Enter at the end of a formula exits to the next line and renders immediately, while Shift+Enter continues inside the block.
-
-Validation: syntax and 37 jsdom tests passed, including typing into an empty math block and rendering after one Enter. Native Zen visuals remain unverified. Replace mod files and fully restart Zen.
-
-# Zen Notes 0.14.16 alpha — Quick Menu proportions
-
-More rounded toolbar and text menu, compact spacing, larger 20px Text control and 18px chevron. Heading options use bold 22/20/18px typography. Names and actions are unchanged; no shortcut labels. Menu typography is explicitly scoped to resist note-theme font overrides.
-
-Validation: JavaScript syntax and DOM regression checks. Live Zen appearance remains unverified.
-
-# Zen Notes 0.14.15 alpha
-
-Empty Markdown link destination with caret inside parentheses. Narrower text-style menu with differentiated heading sizes and larger Text/chevron control. Code copy uses an unboxed icon, cancels mouse focus and announces “Added to your clipboard”. Math supports single-line display delimiters and has a separate View code action. Callouts use theme variables, grouped hover borders and View code.
-
-Validation: syntax and 35 jsdom tests passed. Native Zen visual rendering, Boost switching and toast placement have not been verified. The exact reported math rendering issue was not reproduced from the supplied screenshots; this build improves delimiter support and reading/edit interaction.
-
-Replace mod files and restart Zen. Personal notes were not modified.
-
-# Zen Notes 0.14.14 alpha — Quick Menu and formatting
-
-- Selection toolbar: Link, Bold, Italic, Underline, Strikethrough, Text.
-- Link inserts Markdown and selects the URL for replacement without a prompt.
-- Custom text-style popover retains existing labels, uses larger type and a selected indicator, and omits shortcut labels.
-- Preserve selection on pointer/mouse interaction and avoid moving the toolbar during formatting clicks. Remove pressed-item outlines.
-- Separate italic and bold delimiters when combining styles; recognize HTML strikethrough in formatting transformations.
-
-Validation: JavaScript syntax and 32 jsdom tests, including combined formatting toggles, Link caret selection and custom heading menu. Live Zen UI is not verified.
-
-Replace the mod files and fully restart Zen.
-
-# Zen Notes 0.14.13 alpha — Selection and text interaction
-
-- Undo/Redo snapshots retain the body caret position; Redo restores it with the text.
-- Single click enters Markdown source. Double click selects a word; four consecutive clicks on the same line select the line.
-- Drag selection scrolls near the top and bottom of the note viewport, retaining its anchor across lines. Animation stops on release, cancellation, or document replacement.
-- Copy and Cut supply Markdown plain text and semantic HTML lists instead of editor-specific list marker elements.
-
-Validation: JavaScript syntax check and 29 jsdom tests passed. New regressions cover Redo caret position, formatted list clipboard data, click sequences, and upward multiline selection with simulated scroll geometry. Live Zen and physical trackpad behavior remain unverified.
-
-Replace the mod files and fully restart Zen. Personal notes were not modified.
-
-# Zen Notes 0.14.12 alpha — Editor stability and Undo / Redo
-
-- Capture history before native input; Redo no longer records a new state before traversing history. Restore flags reset even if restoration fails.
-- Cancel stale pointer selections when replacing the document; ignore detached lines in delayed blur handlers. Remove redundant inline DOM rebuilding on keyup.
-- Enter inserts one clean line. Shift+Enter continues supported inline formatting or list style. Code blocks retain their indentation.
-- Double-click text to enter Markdown source editing.
-
-Validation: JavaScript syntax and 25 jsdom regression tests passed, including deleting old text, 30 new edits, Undo/Redo and editing after Undo. Native Zen interaction has not been tested; the reported intermittent freeze is not reproduced in this environment.
-
-Replace the mod files and fully restart Zen. Personal notes are not included or modified.
-
-# Zen Notes 0.14.11 alpha
-
-Local Markdown notes inside Zen Browser, installed as a Sine mod.
-
-## Changes
-
-- Compact selection toolbar: Bold, Italic, Underline and Text styles. Active styles use the browser accent. Repeated clicks remove formatting while preserving the selection; whole-note formatting respects paragraphs, lists and code blocks.
-- Text styles: Text, Heading 1–3, Numbered list and Bulleted list, with platform shortcut labels.
-- Inline code, maths, comments and block insertion place the caret inside the new content. Empty-note placeholder no longer adds an invisible character before the caret.
-- Unified blue callouts with a pencil icon and title.
-- Unified code blocks with a top-right Copy button. Markdown fences appear during editing and stay hidden while reading.
-- Compact tables grow with their content; row and column controls appear independently at their respective edges.
-- Bundled KaTeX renders inline and block formulae as native MathML, including fractions and roots. No runtime network request is required. Unsupported formulae retain their source with an error hint.
-- Smaller footnote references navigate to their editable definitions.
-- Browser address/search shortcuts pass through the editor. URL-bar mutations no longer trigger sidebar rescans. Note title updates find tabs across workspaces even when the cached tab map is stale.
-- Removed Link and Date from Insert; Highlight and Spoiler from Format.
-
-## Installation
-
-Replace the mod files with this archive’s contents and fully restart Zen. This package does not include or modify your personal notes.
-
-## Validation
-
-JavaScript syntax check and 20 DOM tests using jsdom passed. Tests cover repeated formatting, mixed selections, table editing, insertion carets, code copying, MathML, menu removals, shortcut propagation and tab-title updates. Native Zen interaction and visual layout have not been verified; validate those after installation.
-
-## Third-party licenses
-
-Toolbar icons: Lucide (ISC), see LUCIDE-LICENSE.txt. Formula renderer: KaTeX 0.18.7 (MIT), see KATEX-LICENSE.txt.
+Math rendering uses **KaTeX**. Icons use **Lucide**. Quick Notes adapt the installed Zen media stack's layout and reindexing behavior while keeping cards opaque. See the included library license notices.

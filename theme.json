@@ -2,11 +2,11 @@
   "id": "zen-notes",
   "name": "Zen Notes",
   "description": "Local Markdown notes as normal Zen tabs with a reliable content surface, Obsidian-style Live Preview, and Zen Boost styling.",
-  "version": "0.15.18-quick-test",
+  "version": "1.0.0",
   "author": "Zen Notes Project",
   "homepage": "https://github.com/preperevet-1/zen-notes",
   "createdAt": "2026-09-08",
-  "updatedAt": "2026-09-22T13:12:09Z",
+  "updatedAt": "2026-09-22T13:27:01Z",
   "style": {
     "chrome": "ZenNotes.css"
   },

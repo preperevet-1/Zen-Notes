@@ -667,7 +667,7 @@ browser[zen-notes-content="true"] { visibility: hidden !important; }
 #zen-notes-selection-toolbar .zen-notes-text-styles button span { font:400 16px/1 system-ui !important; }
 
 /* 0.14.17: smaller UI, native button appearance reset, smooth block strokes. */
-#zen-notes-selection-toolbar { padding:4px !important; gap:1px !important; border-radius:17px !important; }
+#zen-notes-selection-toolbar { padding:4px 4px 4px 2px !important; gap:1px !important; border-radius:17px !important; }
 #zen-notes-selection-toolbar > button { width:30px; min-width:30px; height:31px; padding:5px; }
 #zen-notes-selection-toolbar > button svg { width:17px; height:17px; }
 #zen-notes-selection-toolbar > [data-action="paragraph"] { min-width:72px; height:31px; padding:4px 8px; gap:6px; font:500 16px/1.2 system-ui !important; }
