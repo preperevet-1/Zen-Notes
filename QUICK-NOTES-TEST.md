@@ -1,3 +1,11 @@
+# Zen Notes 0.15.18-quick-test
+
+Combined Quick Note/media stack now follows the installed ZenMediaController.mjs and zen-media-controls.css flow layout, fixed container height, transforms, easing and two-pass reindexing. Removed the custom absolute positioning, delayed collapse and Web Animations transition. Cards remain opaque as requested.
+
+PDF import via file picker and drag/paste shares a yielding chunked base64 encoder and inserts compact attachment references. File picker now explicitly accepts PDFs and uses document Markdown, not image Markdown, for PDFs. Main-note Enter continues lists/tasks and exits empty items; Shift+Enter does not repeat markers.
+
+Validation: syntax and DOM regressions passed, including attachment byte equality across chunk boundaries, compact PDF card rendering, stack state, and main-note Enter/Shift+Enter cases. The reported native Zen freeze and visual animation require native verification.
+
 # Zen Notes 0.15.17-quick-test
 
 Handle Quick Note caret navigation locally and cancel browser navigation defaults for arrows and boundary keys. Plain link clicks allow editing; Ctrl/Cmd-click explicitly opens the link.
