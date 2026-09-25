@@ -937,3 +937,24 @@ zen-library .zn-library-note-card > .zn-library-note-preview {
  overflow:hidden !important; width:100% !important; max-width:100% !important;
 }
 zen-library .zn-library-note-card:focus-visible { outline:2px solid Highlight; outline-offset:2px; }
+
+/* Match Media's hover motion without adding a hover outline. */
+zen-library .zn-library-note-card { transition:scale .14s ease !important; }
+zen-library .zn-library-note-card:hover { scale:1.04; border-color:#e4e4e7 !important; }
+zen-library .zn-library-note-card:hover:active { scale:1; }
+/* Same light/dark stroke and selected fill as native Library sprites. */
+zen-library .zen-library-tab[data-section="notes"] .zen-library-tab-icon-image svg {
+ stroke:var(--stroke,light-dark(var(--zen-colors-primary),var(--zen-accent-button-color))) !important;
+ fill:transparent !important;
+}
+zen-library .zen-library-tab[data-section="notes"][active] .zen-library-tab-icon-image svg {
+ fill:var(--fill) !important;
+}
+zen-library .zn-library-note-boost .zen-library-boost-icon img { display:none !important; }
+zen-library .zn-library-boost-note-icon {
+ width:28px; height:28px; fill:none; stroke:currentColor; stroke-width:1.8;
+ stroke-linecap:round; stroke-linejoin:round;
+}
+zen-library .zn-library-note-boost .zen-library-row-subtitle { font-size:0 !important; }
+zen-library .zn-library-note-boost .zen-library-row-subtitle::after { content:"notes"; font-size:12px; }
+@media(prefers-reduced-motion:reduce) { zen-library .zn-library-note-card { transition:none !important; } }

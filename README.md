@@ -1,6 +1,6 @@
 # Zen Notes
 
-### Your notes, inside Zen. — Version 1.1.2
+### Your notes, inside Zen. — Version 1.1.3
 
 Markdown notes in regular browser tabs, quick drafts in the sidebar, and a way to save text, links and images from the web without leaving your workspace.
 
@@ -25,7 +25,9 @@ On Zen builds with the new Library (including the 1.23t integration target), ope
 - Preview the beginning of the note or its first embedded PNG/JPEG/GIF/WebP image (within the first 2 MB of source). Remote images are not fetched for thumbnails.
 - Open the original note from its card without creating a copy.
 - Right-click a card to open, rename inline, duplicate, export, reveal its file or delete the note. There is no creation button or note counter in the Library header.
-- The Notes icon animates when selected and respects reduced-motion settings.
+- Cards scale on hover like Media without a hover border change.
+- The Notes icon uses native Library theme colors, fills when selected, animates and respects reduced-motion settings.
+- In Boosts, note entries show a note icon and `notes` beneath the title; other sites keep their original appearance.
 - The **Donate to Zen** button is hidden only in Library's footer.
 
 Previews load lazily with at most two concurrent reads. Notes continue to work on builds without Library; the new section appears only when Library is available. The integration follows the native [section registry](https://github.com/zen-browser/desktop/blob/dev/src/zen/library/ZenLibrary.mjs) and [media-card styling](https://github.com/zen-browser/desktop/blob/dev/src/zen/library/zen-library.css). These are internal APIs and can change between Zen releases.
