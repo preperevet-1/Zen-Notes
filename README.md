@@ -1,6 +1,6 @@
 # Zen Notes
 
-### Your notes, inside Zen. — Version 1.0
+### Your notes, inside Zen. — Version 1.0.1
 
 Markdown notes in regular browser tabs, quick drafts in the sidebar, and a way to save text, links and images from the web without leaving your workspace.
 
@@ -47,6 +47,8 @@ Live Preview renders Markdown while keeping its source editable. Select text for
 | Divider | `---` |
 | Spoilers / colors | Formatting menus, text and background color choices |
 | Date | Insert date from the editor menu |
+
+Numbered lists automatically renumber from 1 after edits. Pasting multiple lines inside a numbered item continues that list. Adding captured web content to a note ending with a numbered list appends numbered items; a blank line separates the list from ordinary text. Source-mode mouse selection keeps the source editor open.
 
 **Enter** continues a list with its next marker or number. Task continuation creates an unchecked item. Enter on an empty list item exits the list. **Shift+Enter** inserts a new line without repeating the list marker.
 
