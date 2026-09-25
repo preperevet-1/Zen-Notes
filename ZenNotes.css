@@ -877,3 +877,35 @@ zen-library .zen-library-tab[data-section="notes"] .zen-library-tab-icon-image {
 @media(prefers-reduced-motion:reduce) { zen-library .zen-library-tab[data-section="notes"] .zen-library-tab-icon-image { animation:none !important; } zen-library .zn-library-note-card { transition:none; } }
 
 zen-library .zen-library-tab[data-section="notes"] .zen-library-tab-icon-image { background-color:currentColor; mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M18%204H8a2%202%200%200%200-2%202v22h20V12z%22%2F%3E%3Cpath%20d%3D%22M18%204v8h8M11%2017h10M11%2022h7%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat; }
+
+/* Use Library's own search markup and media grid metrics. */
+zen-library .zn-library-notes .zen-library-search-box { flex:1; }
+zen-library .zn-library-notes-status[hidden] { display:none !important; }
+zen-library .zn-library-notes-grid { padding:6px; gap:12px; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); }
+zen-library .zn-library-note-card {
+ appearance:none; display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start;
+ width:100%; min-width:0; min-height:0; aspect-ratio:1; overflow:hidden; box-sizing:border-box;
+ padding:14px; gap:6px; border:1px solid #e4e4e7; border-radius:16px;
+ background:#fff; color:#303034; text-align:left;
+}
+zen-library .zn-library-note-card:hover { background:#fff; }
+zen-library .zn-library-note-card > strong {
+ flex:0 0 auto; min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis;
+ white-space:nowrap; font:650 12px/1.25 system-ui; margin:0;
+}
+zen-library .zn-library-note-preview {
+ display:block; flex:1 1 0; min-height:0; width:100%; overflow:hidden;
+ opacity:1; white-space:pre-wrap; overflow-wrap:anywhere; font:9px/1.35 system-ui;
+}
+zen-library .zn-library-preview-heading { font-weight:650; font-size:11px; }
+zen-library .zn-library-note-preview img { display:block; max-width:100%; max-height:100%; object-fit:contain; margin:auto; }
+zen-library .zn-library-note-preview .zen-notes-link { color:#175cd3; text-decoration:underline; }
+zen-library .zn-library-note-card strong[contenteditable="true"] { white-space:normal; outline:1px solid Highlight; user-select:text; cursor:text; }
+zen-library .zen-library-tab[data-section="notes"] .zen-library-tab-icon-image {
+ mask:none !important; background:none !important; width:var(--zen-library-sprite-size,32px) !important;
+ height:var(--zen-library-sprite-size,32px) !important; display:grid; place-items:center;
+}
+zen-library .zen-library-tab[data-section="notes"] .zen-library-tab-icon-image svg {
+ display:block; width:28px; height:28px; fill:none; stroke:currentColor; stroke-width:1.8;
+ stroke-linecap:round; stroke-linejoin:round;
+}

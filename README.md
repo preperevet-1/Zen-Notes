@@ -1,6 +1,6 @@
 # Zen Notes
 
-### Your notes, inside Zen. — Version 1.1
+### Your notes, inside Zen. — Version 1.1.1
 
 Markdown notes in regular browser tabs, quick drafts in the sidebar, and a way to save text, links and images from the web without leaving your workspace.
 
@@ -18,13 +18,13 @@ For a manual update of an existing installation, replace `ZenNotes.uc.js`, `ZenN
 
 ## Notes in Zen Library
 
-On Zen builds with the new Library (including the 1.23t integration target), open **Library → Notes**. The mod registers Notes alongside the built-in sections.
+On Zen builds with the new Library (including the 1.23t integration target), open **Library → Notes**, directly below Boosts. The mod registers Notes alongside the built-in sections.
 
-- Browse note cards, sorted by most recently updated.
-- Search by note title, case-insensitively.
+- Browse white square note cards with titles at the top, using Media grid dimensions and spacing. Cards are sorted by most recently updated.
+- Search by note title, case-insensitively, using the native Library search field.
 - Preview the beginning of the note or its first embedded PNG/JPEG/GIF/WebP image (within the first 2 MB of source). Remote images are not fetched for thumbnails.
 - Open the original note from its card without creating a copy.
-- Create a note with the **+** button beside search.
+- Right-click a card to open, rename inline, duplicate, export, reveal its file or delete the note. There is no creation button or note counter in the Library header.
 - The Notes icon animates when selected and respects reduced-motion settings.
 - The **Donate to Zen** button is hidden only in Library's footer.
 
